@@ -40,11 +40,17 @@ def mock_daemon(short_sock: Path):
 
     mock_fb = MagicMock(spec=AudioFeedback)
 
+    from voicekey.paste import PasteInjector
+    mock_inj = MagicMock(spec=PasteInjector)
+    mock_inj.is_available = True
+    mock_inj.inject_ctrl_v.return_value = True
+
     daemon = VoiceKeyDaemon(
         config=config,
         recorder=mock_rec,
         transcriber=mock_trans,
         feedback=mock_fb,
+        injector=mock_inj,
     )
     return daemon
 
@@ -131,14 +137,19 @@ async def test_daemon_live_ipc_commands(mock_daemon: VoiceKeyDaemon, short_sock:
     assert toggle1["status"] == "ok"
     assert toggle1["state"] == "recording"
 
+    mock_daemon.config.output.paste_delay_ms = 0
+
     # Toggle to stop and transcribe
-    toggle2 = await loop.run_in_executor(
-        None,
-        lambda: send_daemon_command("toggle", socket_path=short_sock, timeout=2.0)
-    )
+    from unittest.mock import patch
+    with patch("voicekey.daemon.dispatch_paste", return_value=(True, "pasted")):
+        toggle2 = await loop.run_in_executor(
+            None,
+            lambda: send_daemon_command("toggle", socket_path=short_sock, timeout=5.0)
+        )
     assert toggle2["status"] == "ok"
     assert toggle2["state"] == "idle"
     assert toggle2["text"] == "Hello world from daemon"
+    assert toggle2["action"] == "pasted"
 
     # Unknown command
     unknown = await loop.run_in_executor(

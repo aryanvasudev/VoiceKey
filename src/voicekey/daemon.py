@@ -22,6 +22,8 @@ from voicekey.ipc import create_ipc_server
 from voicekey.notify import send_notification
 from voicekey.transcriber import BaseTranscriber, create_transcriber
 
+from voicekey.paste import PasteInjector, dispatch_paste
+
 logger = logging.getLogger("voicekeyd")
 
 
@@ -41,11 +43,13 @@ class VoiceKeyDaemon:
         recorder: AudioRecorder | None = None,
         transcriber: BaseTranscriber | None = None,
         feedback: AudioFeedback | None = None,
+        injector: PasteInjector | None = None,
     ) -> None:
         self.config = config
         self.feedback = feedback or AudioFeedback(enabled=config.audio.sound_feedback)
         self.recorder = recorder or AudioRecorder(config=config.audio, feedback=self.feedback)
         self.transcriber = transcriber  # May be pre-injected or loaded during start()
+        self.injector = injector or PasteInjector()
         self.state = DaemonState.IDLE
         self.start_time = time.time()
 
@@ -101,22 +105,37 @@ class VoiceKeyDaemon:
         # Run transcription in threadpool to keep event loop responsive
         loop = asyncio.get_running_loop()
         text = ""
+        paste_action = "none"
         if len(audio_data) > 0 and self.transcriber is not None:
             text = await loop.run_in_executor(self._executor, self.transcriber.transcribe, audio_data)
+            if text:
+                _ok, paste_action = await loop.run_in_executor(
+                    self._executor,
+                    lambda: dispatch_paste(
+                        text=text,
+                        mode=self.config.output.mode,
+                        paste_delay_ms=self.config.output.paste_delay_ms,
+                        injector=self.injector,
+                    ),
+                )
 
         async with self._lock:
             self.state = DaemonState.IDLE
 
         if self.config.output.notify and text:
-            send_notification("VoiceKey", f"Transcribed: {text[:60]}...", timeout_ms=2500)
+            if paste_action == "pasted":
+                send_notification("VoiceKey", f"Pasted: {text[:60]}...", timeout_ms=2000)
+            else:
+                send_notification("VoiceKey", f"Copied to clipboard: {text[:60]}...", timeout_ms=2500)
 
-        logger.info("Transcription completed: '%s' (%.2fs)", text, duration)
+        logger.info("Transcription completed: '%s' (%.2fs, action=%s)", text, duration, paste_action)
         return {
             "status": "ok",
             "state": DaemonState.IDLE.value,
             "text": text,
             "duration": round(duration, 2),
             "rms": round(rms, 4),
+            "action": paste_action,
         }
 
     async def handle_start(self) -> dict[str, Any]:
@@ -156,14 +175,28 @@ class VoiceKeyDaemon:
 
         loop = asyncio.get_running_loop()
         text = ""
+        paste_action = "none"
         if len(audio_data) > 0 and self.transcriber is not None:
             text = await loop.run_in_executor(self._executor, self.transcriber.transcribe, audio_data)
+            if text:
+                _ok, paste_action = await loop.run_in_executor(
+                    self._executor,
+                    lambda: dispatch_paste(
+                        text=text,
+                        mode=self.config.output.mode,
+                        paste_delay_ms=self.config.output.paste_delay_ms,
+                        injector=self.injector,
+                    ),
+                )
 
         async with self._lock:
             self.state = DaemonState.IDLE
 
         if self.config.output.notify and text:
-            send_notification("VoiceKey", f"Transcribed: {text[:60]}...", timeout_ms=2500)
+            if paste_action == "pasted":
+                send_notification("VoiceKey", f"Pasted: {text[:60]}...", timeout_ms=2000)
+            else:
+                send_notification("VoiceKey", f"Copied to clipboard: {text[:60]}...", timeout_ms=2500)
 
         return {
             "status": "ok",
@@ -171,6 +204,7 @@ class VoiceKeyDaemon:
             "text": text,
             "duration": round(duration, 2),
             "rms": round(rms, 4),
+            "action": paste_action,
         }
 
     def handle_status(self) -> dict[str, Any]:
@@ -187,6 +221,8 @@ class VoiceKeyDaemon:
             "device": self.config.transcription.device,
             "model_warm": is_warm,
             "is_recording": self.recorder.is_recording,
+            "paste_mode": self.config.output.mode,
+            "uinput_ready": self.injector.is_available,
             "uptime_seconds": round(time.time() - self.start_time, 1),
             "version": __version__,
         }
@@ -290,6 +326,9 @@ class VoiceKeyDaemon:
 
         if self.transcriber is not None:
             self.transcriber.unload()
+
+        if self.injector is not None:
+            self.injector.close()
 
         self._executor.shutdown(wait=False)
         logger.info("VoiceKey Daemon stopped cleanly.")
