@@ -203,3 +203,65 @@ def test_cli_test_paste(capsys: pytest.CaptureFixture[str]):
     captured = capsys.readouterr()
     assert "Testing output dispatch with text: 'sample text'" in captured.out
     assert "Action taken:     pasted" in captured.out
+
+
+def test_cli_autostart_install(capsys: pytest.CaptureFixture[str], tmp_path: Path):
+    """`voicekey autostart --install` invokes install_service and reports path."""
+    from unittest.mock import patch
+
+    with patch("voicekey.service.install_service", return_value=tmp_path / "voicekey.service"):
+        exit_code = cli.main(["autostart", "--install"])
+        assert exit_code == 0
+
+    captured = capsys.readouterr()
+    assert "Systemd user service installed to:" in captured.out
+    assert "Enabled autostart on user login" in captured.out
+
+
+def test_cli_autostart_remove(capsys: pytest.CaptureFixture[str]):
+    """`voicekey autostart --remove` invokes uninstall_service and reports outcome."""
+    from unittest.mock import patch
+
+    with patch("voicekey.service.uninstall_service", return_value=True):
+        exit_code = cli.main(["autostart", "--remove"])
+        assert exit_code == 0
+
+    captured = capsys.readouterr()
+    assert "Systemd user service stopped, disabled, and removed" in captured.out
+
+
+def test_cli_autostart_start_stop(capsys: pytest.CaptureFixture[str]):
+    """`voicekey autostart --start` and `--stop` invoke systemctl."""
+    import subprocess
+    from unittest.mock import patch
+
+    mock_ok = subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr="")
+    with patch("voicekey.service._run_systemctl", return_value=mock_ok):
+        assert cli.main(["autostart", "--start"]) == 0
+        captured = capsys.readouterr()
+        assert "Started voicekey.service" in captured.out
+
+        assert cli.main(["autostart", "--stop"]) == 0
+        captured = capsys.readouterr()
+        assert "Stopped voicekey.service" in captured.out
+
+
+def test_cli_autostart_status(capsys: pytest.CaptureFixture[str]):
+    """`voicekey autostart [--status]` displays service status information."""
+    from unittest.mock import patch
+
+    mock_status = {
+        "installed": True,
+        "path": "/home/user/.config/systemd/user/voicekey.service",
+        "enabled": True,
+        "active": False,
+        "status_output": "Inactive",
+    }
+    with patch("voicekey.service.get_service_status", return_value=mock_status):
+        assert cli.main(["autostart", "--status"]) == 0
+
+    captured = capsys.readouterr()
+    assert "Systemd User Service Status:" in captured.out
+    assert "Found" in captured.out
+    assert "Yes (starts on login)" in captured.out
+

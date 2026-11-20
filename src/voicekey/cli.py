@@ -91,7 +91,37 @@ def create_parser() -> argparse.ArgumentParser:
         help="Custom text string to paste (default: 'VoiceKey auto-paste test!')",
     )
 
+    # `voicekey autostart`
+    autostart_parser = subparsers.add_parser("autostart", help="Manage systemd user service autostart for VoiceKey daemon")
+    autostart_group = autostart_parser.add_mutually_exclusive_group()
+    autostart_group.add_argument(
+        "--install",
+        action="store_true",
+        help="Install and enable systemd user service (~/.config/systemd/user/voicekey.service)",
+    )
+    autostart_group.add_argument(
+        "--remove",
+        action="store_true",
+        help="Stop, disable, and remove systemd user service",
+    )
+    autostart_group.add_argument(
+        "--start",
+        action="store_true",
+        help="Start voicekey.service via systemctl --user",
+    )
+    autostart_group.add_argument(
+        "--stop",
+        action="store_true",
+        help="Stop voicekey.service via systemctl --user",
+    )
+    autostart_group.add_argument(
+        "--status",
+        action="store_true",
+        help="Check systemd service status (installed, enabled, active)",
+    )
+
     return parser
+
 
 
 def handle_config_command(args: argparse.Namespace) -> int:
@@ -294,6 +324,62 @@ def handle_test_paste_command(args: argparse.Namespace, config) -> int:
     return 0
 
 
+def handle_autostart_command(args: argparse.Namespace) -> int:
+    """Handle `voicekey autostart` subcommands."""
+    from voicekey.service import (
+        SERVICE_NAME,
+        _run_systemctl,
+        get_service_status,
+        install_service,
+        uninstall_service,
+    )
+
+    if args.install:
+        path = install_service(enable=True, start=False)
+        print(f"[voicekey] ✅ Systemd user service installed to: {path}")
+        print("[voicekey] Enabled autostart on user login.")
+        print("[voicekey] To start daemon immediately, run: voicekey autostart --start")
+        return 0
+
+    if args.remove:
+        removed = uninstall_service(stop=True)
+        if removed:
+            print("[voicekey] 🗑️ Systemd user service stopped, disabled, and removed.")
+        else:
+            print("[voicekey] ℹ️ Systemd unit file was not present or already removed.")
+        return 0
+
+    if args.start:
+        res = _run_systemctl(["start", SERVICE_NAME])
+        if res.returncode == 0:
+            print("[voicekey] 🚀 Started voicekey.service")
+            return 0
+        print(f"[voicekey] ❌ Failed to start service: {res.stderr.strip()}", file=sys.stderr)
+        return 1
+
+    if args.stop:
+        res = _run_systemctl(["stop", SERVICE_NAME])
+        if res.returncode == 0:
+            print("[voicekey] ⏹️ Stopped voicekey.service")
+            return 0
+        print(f"[voicekey] ❌ Failed to stop service: {res.stderr.strip()}", file=sys.stderr)
+        return 1
+
+    # Default / --status
+    status = get_service_status()
+    print("[voicekey] Systemd User Service Status:")
+    print(f"  Unit File:        {status['path']} ({'Found' if status['installed'] else 'Not installed'})")
+    print(f"  Enabled:          {'Yes (starts on login)' if status['enabled'] else 'No'}")
+    print(f"  Active:           {'Running' if status['active'] else 'Inactive'}")
+    if status["status_output"]:
+        print("\n--- systemctl status voicekey.service ---")
+        print(status["status_output"])
+    elif not status["installed"]:
+        print("\nTo enable automatic startup on login, run:")
+        print("  voicekey autostart --install")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     """CLI main entry point."""
     parser = create_parser()
@@ -317,11 +403,15 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "test-paste":
         return handle_test_paste_command(args, config)
 
+    if args.command == "autostart":
+        return handle_autostart_command(args)
+
     if args.command in {"toggle", "start", "stop", "status"}:
         socket_path = config.resolved_socket_path()
         return handle_daemon_command(args.command, socket_path)
 
     return 0
+
 
 
 if __name__ == "__main__":
