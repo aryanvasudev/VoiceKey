@@ -74,6 +74,14 @@ def create_parser() -> argparse.ArgumentParser:
         help="Recording duration in seconds (default: 2.0)",
     )
 
+    # `voicekey doctor`
+    doctor_parser = subparsers.add_parser("doctor", help="Inspect device hardware and recommend optimal transcription engine")
+    doctor_parser.add_argument(
+        "--apply",
+        action="store_true",
+        help="Automatically apply recommended engine and model settings to config.toml",
+    )
+
     return parser
 
 
@@ -137,6 +145,28 @@ def handle_test_audio_command(args: argparse.Namespace, config) -> int:
     return 0
 
 
+def handle_doctor_command(args: argparse.Namespace, config) -> int:
+    """Handle `voicekey doctor` command."""
+    from voicekey.doctor import probe_hardware, recommend_setup, format_doctor_report
+    from voicekey.config import save_config, get_default_config_path
+
+    profile = probe_hardware()
+    rec = recommend_setup(profile)
+    print(format_doctor_report(profile, rec))
+
+    if args.apply:
+        config.transcription.backend = rec.backend
+        config.transcription.model_size = rec.model_size
+        config.transcription.device = rec.device
+        config.transcription.compute_type = rec.compute_type
+        config.transcription.cpu_threads = rec.cpu_threads
+        config_path = args.config or get_default_config_path()
+        save_config(config, config_path)
+        print(f"\n[voicekey] Successfully applied recommended settings to: {config_path}")
+
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     """CLI main entry point."""
     parser = create_parser()
@@ -153,6 +183,9 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "test-audio":
         return handle_test_audio_command(args, config)
+
+    if args.command == "doctor":
+        return handle_doctor_command(args, config)
 
     if args.command in {"toggle", "start", "stop", "status"}:
         socket_path = config.resolved_socket_path()

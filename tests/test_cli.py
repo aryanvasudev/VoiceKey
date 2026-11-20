@@ -113,3 +113,23 @@ def test_cli_test_audio(capsys: pytest.CaptureFixture[str]):
     assert "Testing audio recording" in captured.out
     assert "RMS Level:" in captured.out
     assert "Audio input detected successfully" in captured.out
+
+
+def test_cli_doctor(capsys: pytest.CaptureFixture[str]):
+    """`voicekey doctor` prints system hardware analysis and recommendations."""
+    exit_code = cli.main(["doctor"])
+    assert exit_code == 0
+    captured = capsys.readouterr()
+    assert "VoiceKey Hardware & Engine Doctor" in captured.out
+    assert "RECOMMENDED CONFIGURATION" in captured.out
+
+
+def test_cli_doctor_apply(capsys: pytest.CaptureFixture[str], tmp_path: Path):
+    """`voicekey doctor --apply` writes recommendations to config."""
+    conf = tmp_path / "doctor_config.toml"
+    exit_code = cli.main(["--config", str(conf), "doctor", "--apply"])
+    assert exit_code == 0
+    assert conf.exists()
+
+    captured = capsys.readouterr()
+    assert "Successfully applied recommended settings" in captured.out
