@@ -53,16 +53,25 @@ def get_default_socket_path() -> Path:
     return get_default_state_dir() / DEFAULT_SOCKET_FILE_NAME
 
 
+SUPPORTED_BACKENDS = {"faster-whisper", "whisper.cpp", "openai-whisper", "whisperx"}
+
+
 @dataclass
 class TranscriptionConfig:
-    """Settings for faster-whisper model and inference."""
+    """Settings for speech-to-text transcription engine and model."""
 
+    backend: str = "faster-whisper"  # "faster-whisper", "whisper.cpp", "openai-whisper", "whisperx"
     model_size: str = "base.en"
-    device: str = "cpu"
+    device: str = "cpu"  # "cpu", "cuda", or "auto"
     compute_type: str = "int8"
     beam_size: int = 1
     vad_filter: bool = True
     cpu_threads: int = 8
+    initial_prompt: str = ""
+    hotwords: list[str] = field(default_factory=list)
+    whisper_cpp_path: str = ""
+    spoken_punctuation: bool = False  # Toggle for parsing spoken punctuation ("comma", "new line")
+    normalize_text: bool = True       # Toggle for cleaning whitespace, capitalization
 
 
 @dataclass
@@ -115,13 +124,25 @@ def from_dict(data: dict[str, Any]) -> VoiceKeyConfig:
     output_data = data.get("output", {})
     daemon_data = data.get("daemon", {})
 
+    hotwords_raw = transcription_data.get("hotwords", [])
+    if isinstance(hotwords_raw, list):
+        hotwords = [str(w) for w in hotwords_raw]
+    else:
+        hotwords = []
+
     transcription = TranscriptionConfig(
+        backend=str(transcription_data.get("backend", "faster-whisper")),
         model_size=str(transcription_data.get("model_size", "base.en")),
         device=str(transcription_data.get("device", "cpu")),
         compute_type=str(transcription_data.get("compute_type", "int8")),
         beam_size=int(transcription_data.get("beam_size", 1)),
         vad_filter=bool(transcription_data.get("vad_filter", True)),
         cpu_threads=int(transcription_data.get("cpu_threads", 8)),
+        initial_prompt=str(transcription_data.get("initial_prompt", "")),
+        hotwords=hotwords,
+        whisper_cpp_path=str(transcription_data.get("whisper_cpp_path", "")),
+        spoken_punctuation=bool(transcription_data.get("spoken_punctuation", False)),
+        normalize_text=bool(transcription_data.get("normalize_text", True)),
     )
 
     audio = AudioConfig(
@@ -152,6 +173,12 @@ def from_dict(data: dict[str, Any]) -> VoiceKeyConfig:
 def validate_config(config: VoiceKeyConfig) -> list[str]:
     """Validate configuration values and return a list of error messages (empty if valid)."""
     errors: list[str] = []
+
+    if config.transcription.backend not in SUPPORTED_BACKENDS:
+        errors.append(
+            f"Invalid transcription.backend: '{config.transcription.backend}'. "
+            f"Must be one of: {', '.join(sorted(SUPPORTED_BACKENDS))}"
+        )
 
     if not config.transcription.model_size.strip():
         errors.append("transcription.model_size cannot be empty")

@@ -22,12 +22,17 @@ def test_default_config_values():
     """Verify default configuration values adhere to system specs."""
     config = VoiceKeyConfig()
 
+    assert config.transcription.backend == "faster-whisper"
     assert config.transcription.model_size == "base.en"
     assert config.transcription.device == "cpu"
     assert config.transcription.compute_type == "int8"
     assert config.transcription.beam_size == 1
     assert config.transcription.vad_filter is True
     assert config.transcription.cpu_threads == 8
+    assert config.transcription.initial_prompt == ""
+    assert config.transcription.hotwords == []
+    assert config.transcription.spoken_punctuation is False
+    assert config.transcription.normalize_text is True
 
     assert config.audio.sample_rate == 16000
     assert config.audio.channels == 1
@@ -46,12 +51,17 @@ def test_save_and_load_roundtrip(tmp_path: Path):
 
     custom_config = VoiceKeyConfig(
         transcription=TranscriptionConfig(
+            backend="whisper.cpp",
             model_size="small.en",
             device="cpu",
             compute_type="int8",
             beam_size=2,
             vad_filter=False,
             cpu_threads=4,
+            initial_prompt="Code review",
+            hotwords=["VoiceKey", "Wayland", "PipeWire"],
+            spoken_punctuation=True,
+            normalize_text=True,
         ),
         audio=AudioConfig(
             sample_rate=16000,
@@ -120,13 +130,14 @@ def test_validate_config_valid():
 def test_validate_config_invalid():
     """Invalid configurations produce descriptive validation errors."""
     bad_config = VoiceKeyConfig(
-        transcription=TranscriptionConfig(model_size="", device="invalid_device", beam_size=0, cpu_threads=0),
+        transcription=TranscriptionConfig(backend="unsupported_backend", model_size="", device="invalid_device", beam_size=0, cpu_threads=0),
         audio=AudioConfig(sample_rate=-1, channels=3),
         output=OutputConfig(mode="unsupported_mode", paste_delay_ms=-10),
         daemon=DaemonConfig(socket_path=""),
     )
 
     errors = validate_config(bad_config)
+    assert any("transcription.backend" in e for e in errors)
     assert any("model_size" in e for e in errors)
     assert any("device" in e for e in errors)
     assert any("beam_size" in e for e in errors)
