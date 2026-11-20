@@ -22,7 +22,10 @@
   - Fast clipboard copy using `wl-copy`.
   - Automatic `Ctrl+V` key injection via `/dev/uinput` (`evdev.UInput`).
   - GNOME shortcut binding script (`gsettings`).
-- [ ] **Phase 6: Verification & Systemd Autostart**
-  - End-to-end integration test (speak -> hotkey -> auto-paste).
-  - Generate systemd user unit (`~/.config/systemd/user/voicekey.service`).
+- [x] **Phase 6: Verification & Systemd Autostart**
+  - End-to-end integration test suite (`tests/test_e2e.py`) verifying full toggle -> record -> transcribe -> postprocess -> paste pipeline.
+  - Systemd user service generator and lifecycle management (`voicekey autostart --install`, `--remove`, `--start`, `--stop`, `--status`).
+  - Automated installer script (`scripts/install_systemd_service.sh`).
+  - Comprehensive environment and installation verification diagnostic (`scripts/verify_installation.py`).
+
 

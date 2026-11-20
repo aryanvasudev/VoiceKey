@@ -128,6 +128,7 @@ voicekey config --show
 | `voicekey start` | Explicitly start dictation recording |
 | `voicekey stop` | Explicitly stop recording and trigger transcription & paste |
 | `voicekey test-paste` | Copy test string to clipboard and simulate Ctrl+V via /dev/uinput |
+| `voicekey autostart` | Manage systemd user autostart service (`--install`, `--remove`, `--start`, `--stop`, `--status`) |
 | `voicekey test-audio` | Record audio sample to verify microphone input and sound cues |
 | `voicekey doctor` | Probe CPU/GPU hardware and recommend optimal backend & model |
 | `voicekey doctor --apply` | Automatically tune and write optimal settings to `config.toml` |
@@ -149,7 +150,46 @@ VoiceKey includes an automated setup script to bind `voicekey toggle` to any glo
 ./scripts/setup_gnome_hotkey.sh "F9"
 ```
 
-Ensure your user has read/write permission to `/dev/uinput` (e.g. member of the `input` group or udev rule) for automatic `Ctrl+V` keystroke injection.
+Ensure your user has read/write permission to `/dev/uinput` (e.g. member of the `input` group or udev rule) for automatic `Ctrl+V` keystroke injection:
+```bash
+sudo usermod -aG input $USER
+```
+
+---
+
+## Systemd Autostart Service
+
+To automatically launch the `voicekeyd` daemon on user login:
+
+```bash
+# Install and enable systemd user unit (~/.config/systemd/user/voicekey.service)
+voicekey autostart --install
+
+# Check service status
+voicekey autostart --status
+
+# Start or stop the service
+voicekey autostart --start
+voicekey autostart --stop
+
+# Or uninstall
+voicekey autostart --remove
+```
+
+Alternatively, run the dedicated setup script:
+```bash
+./scripts/install_systemd_service.sh
+```
+
+---
+
+## Environment & Installation Verification
+
+To run an automated health check verifying all subsystems (audio input, PipeWire chimes, desktop notifications, Wayland clipboard, `/dev/uinput`, GNOME shortcut, systemd, and hardware):
+
+```bash
+uv run python scripts/verify_installation.py
+```
 
 ---
 
@@ -185,5 +225,10 @@ uv run pytest
   - Clipboard copy via `wl-copy` and direct `/dev/uinput` virtual `Ctrl+V` key injection (`evdev`).
   - Automated GNOME global keybinding configuration helper script (`scripts/setup_gnome_hotkey.sh`).
   - Clipboard/uinput diagnostics (`voicekey test-paste` and `voicekey doctor` uinput check).
-- [ ] **Phase 6: Systemd Autostart & End-to-End Verification**
+- [x] **Phase 6: Systemd Autostart & End-to-End Verification**
+  - Systemd user service generator and CLI lifecycle manager (`voicekey autostart`).
+  - Shell installer script (`scripts/install_systemd_service.sh`).
+  - Comprehensive environment verification suite (`scripts/verify_installation.py`).
+  - End-to-end integration test suite (`tests/test_e2e.py`) validating the entire speak -> toggle -> transcribe -> paste loop.
+
 
