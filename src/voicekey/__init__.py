@@ -2,6 +2,7 @@
 
 __version__ = "0.1.0"
 
+from voicekey.audio import AudioRecorder
 from voicekey.config import (
     AudioConfig,
     DaemonConfig,
@@ -11,14 +12,20 @@ from voicekey.config import (
     load_config,
     save_config,
 )
+from voicekey.feedback import AudioFeedback, SoundCue
+from voicekey.notify import send_notification
 
 __all__ = [
     "__version__",
     "AudioConfig",
+    "AudioFeedback",
+    "AudioRecorder",
     "DaemonConfig",
     "OutputConfig",
+    "SoundCue",
     "TranscriptionConfig",
     "VoiceKeyConfig",
     "load_config",
     "save_config",
+    "send_notification",
 ]

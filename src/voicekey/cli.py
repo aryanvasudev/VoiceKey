@@ -65,6 +65,15 @@ def create_parser() -> argparse.ArgumentParser:
         help="Display the current active configuration in TOML format",
     )
 
+    # `voicekey test-audio`
+    audio_parser = subparsers.add_parser("test-audio", help="Record audio sample to verify microphone input and audio cues")
+    audio_parser.add_argument(
+        "--seconds",
+        type=float,
+        default=2.0,
+        help="Recording duration in seconds (default: 2.0)",
+    )
+
     return parser
 
 
@@ -93,6 +102,41 @@ def handle_config_command(args: argparse.Namespace) -> int:
     return 0
 
 
+def handle_test_audio_command(args: argparse.Namespace, config) -> int:
+    """Handle `voicekey test-audio` command."""
+    import time
+    from voicekey.audio import AudioRecorder
+    from voicekey.notify import send_notification
+
+    print(f"[voicekey] Testing audio recording for {args.seconds:.1f}s...")
+    recorder = AudioRecorder(config=config.audio)
+    recorder.start(play_cue=True)
+    send_notification("VoiceKey", f"Testing audio recording ({args.seconds:.1f}s)...")
+
+    try:
+        time.sleep(args.seconds)
+    finally:
+        audio_data = recorder.stop(play_cue=True)
+
+    rms = AudioRecorder.calculate_rms(audio_data)
+    peak = AudioRecorder.calculate_peak(audio_data)
+    duration = len(audio_data) / config.audio.sample_rate if config.audio.sample_rate > 0 else 0.0
+
+    print(f"[voicekey] Recording complete!")
+    print(f"  Duration:  {duration:.2f}s ({len(audio_data)} samples at {config.audio.sample_rate}Hz)")
+    print(f"  RMS Level: {rms:.4f}")
+    print(f"  Peak Level:{peak:.4f}")
+
+    if rms > 0.005:
+        print("  Status:    Audio input detected successfully! 🎙️")
+        send_notification("VoiceKey", f"Audio test passed (RMS: {rms:.4f})")
+    else:
+        print("  Status:    Very low audio level or silence detected. Check microphone volume.")
+        send_notification("VoiceKey", "Audio test completed (silent or low input)")
+
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     """CLI main entry point."""
     parser = create_parser()
@@ -106,6 +150,9 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "config":
         return handle_config_command(args)
+
+    if args.command == "test-audio":
+        return handle_test_audio_command(args, config)
 
     if args.command in {"toggle", "start", "stop", "status"}:
         socket_path = config.resolved_socket_path()

@@ -88,3 +88,28 @@ def test_daemon_main_initializes(tmp_path: Path):
     exit_code = daemon.main(["--config", str(conf), "--socket", str(sock), "--debug"])
     assert exit_code == 0
     assert conf.exists()
+
+
+def test_cli_test_audio(capsys: pytest.CaptureFixture[str]):
+    """`voicekey test-audio` runs audio test routine and outputs metrics."""
+    from unittest.mock import MagicMock, patch
+    import numpy as np
+
+    mock_rec = MagicMock()
+    mock_rec.stop.return_value = np.full(16000, 0.05, dtype=np.float32)
+
+    mock_cls = MagicMock()
+    mock_cls.return_value = mock_rec
+    mock_cls.calculate_rms.return_value = 0.05
+    mock_cls.calculate_peak.return_value = 0.1
+
+    with patch("voicekey.audio.AudioRecorder", mock_cls), \
+         patch("time.sleep", return_value=None), \
+         patch("voicekey.notify.send_notification", return_value=True):
+        exit_code = cli.main(["test-audio", "--seconds", "0.1"])
+        assert exit_code == 0
+
+    captured = capsys.readouterr()
+    assert "Testing audio recording" in captured.out
+    assert "RMS Level:" in captured.out
+    assert "Audio input detected successfully" in captured.out
