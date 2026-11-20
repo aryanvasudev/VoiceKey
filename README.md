@@ -71,12 +71,17 @@ VoiceKey automatically creates and reads `~/.config/voicekey/config.toml`:
 
 ```toml
 [transcription]
-model_size = "base.en"        # "tiny.en", "base.en", "small.en", etc.
+backend = "faster-whisper"    # "faster-whisper", "whisper.cpp", "openai-whisper", "whisperx"
+model_size = "base.en"        # "tiny.en", "base.en", "small.en", "distil-large-v3", etc.
 device = "cpu"                # "cpu", "cuda", or "auto"
-compute_type = "int8"         # "int8" for lowest latency on CPU
+compute_type = "int8"         # "int8", "float16", "int4"
 beam_size = 1                 # 1 for maximum speed (greedy search)
 vad_filter = true             # filter out background silence
-cpu_threads = 8               # CPU threads for faster-whisper
+cpu_threads = 8               # CPU threads for inference
+initial_prompt = ""           # Prompt context
+hotwords = ["Kubernetes", "VoiceKey", "Wayland"] # Jargon / name biasing
+spoken_punctuation = false    # Toggle: convert spoken words like "comma", "new line"
+normalize_text = true         # Toggle: clean whitespace & capitalization
 
 [audio]
 sample_rate = 16000
@@ -90,6 +95,15 @@ notify = true                 # Send desktop notification
 
 [daemon]
 socket_path = "~/.local/state/voicekey/daemon.sock"
+```
+
+To inspect hardware recommendations or auto-apply optimal settings:
+```bash
+# Analyze hardware and recommend optimal backend and model
+voicekey doctor
+
+# Automatically write recommended engine settings to config.toml
+voicekey doctor --apply
 ```
 
 To initialize or view the configuration:
@@ -114,6 +128,8 @@ voicekey config --show
 | `voicekey start` | Explicitly start dictation recording |
 | `voicekey stop` | Explicitly stop recording and trigger transcription & paste |
 | `voicekey test-audio` | Record audio sample to verify microphone input and sound cues |
+| `voicekey doctor` | Probe CPU/GPU hardware and recommend optimal backend & model |
+| `voicekey doctor --apply` | Automatically tune and write optimal settings to `config.toml` |
 | `voicekey status` | Query current status of `voicekeyd` |
 | `voicekey config` | View or initialize configuration |
 | `voicekeyd` | Start the persistent background daemon |
@@ -139,9 +155,11 @@ uv run pytest
   - Ring buffer audio recorder via `sounddevice` (16kHz mono float32 RAM buffer).
   - Low-latency non-blocking audio start/stop cues via `pw-play` with synthesized fallback.
   - Desktop notification integration via `notify-send`.
-- [ ] **Phase 3: Warm Transcriber Engine**
-  - Persistent worker holding `faster-whisper` model in RAM.
-  - INT8 latency optimization and text post-processing.
+- [x] **Phase 3: Multi-Backend Transcriber Engine & Hardware Doctor**
+  - Pluggable transcriber interface (`BaseTranscriber`).
+  - Backends: `faster-whisper`, `whisper.cpp` (ultra-lightweight with on-demand build/download), `openai-whisper`, and `whisperx`.
+  - Hardware profiler (`voicekey doctor`) with `--apply` auto-tuning.
+  - Hotword vocabulary biasing & clean-state feature toggles (`spoken_punctuation`, `normalize_text`).
 - [ ] **Phase 4: Daemon IPC & CLI Client**
   - Unix Domain Socket server & async protocol.
 - [ ] **Phase 5: Wayland Auto-Paste & Hotkey Integration**
