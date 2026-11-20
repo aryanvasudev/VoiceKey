@@ -15,7 +15,7 @@
   - Hardware profiler & recommender (`voicekey doctor`) to suggest optimal backend & model per device.
   - Vocabulary biasing / hotword prompting for jargon & programming terms.
   - Text post-processing (whitespace, punctuation, capitalization normalization, and spoken punctuation).
-- [ ] **Phase 4: Daemon IPC & CLI Client**
+- [x] **Phase 4: Daemon IPC & CLI Client**
   - Unix Domain Socket server (`~/.local/state/voicekey/daemon.sock`).
   - Instant CLI client (`voicekey toggle`, `voicekey start`, `voicekey stop`, `voicekey status`, `voicekey doctor`).
 - [ ] **Phase 5: Wayland Auto-Paste & Hotkey Integration**

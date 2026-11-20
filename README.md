@@ -160,8 +160,10 @@ uv run pytest
   - Backends: `faster-whisper`, `whisper.cpp` (ultra-lightweight with on-demand build/download), `openai-whisper`, and `whisperx`.
   - Hardware profiler (`voicekey doctor`) with `--apply` auto-tuning.
   - Hotword vocabulary biasing & clean-state feature toggles (`spoken_punctuation`, `normalize_text`).
-- [ ] **Phase 4: Daemon IPC & CLI Client**
-  - Unix Domain Socket server & async protocol.
+- [x] **Phase 4: Daemon IPC & CLI Client**
+  - Unix Domain Socket server (`~/.local/state/voicekey/daemon.sock`) with automatic stale socket cleanup.
+  - Sub-5ms CLI client dispatch for `voicekey toggle`, `voicekey status`, `voicekey start`, and `voicekey stop`.
+  - Non-blocking threadpool transcription worker to ensure immediate IPC responsiveness.
 - [ ] **Phase 5: Wayland Auto-Paste & Hotkey Integration**
   - Clipboard copy via `wl-copy` and `/dev/uinput` virtual `Ctrl+V`.
 - [ ] **Phase 6: Systemd Autostart & End-to-End Verification**
