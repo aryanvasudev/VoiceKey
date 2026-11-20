@@ -2,7 +2,7 @@
 
 ## Milestone 1: MVP Core (Hotkey Dictation & Auto-Paste)
 
-- [ ] **Phase 1: Project Scaffolding & Configuration**
+- [x] **Phase 1: Project Scaffolding & Configuration**
   - Setup `pyproject.toml`, console entry points (`voicekey`, `voicekeyd`).
   - Implement config manager (`~/.config/voicekey/config.toml`) with sensible defaults (`model="base.en"`, `device="cpu"`, `compute_type="int8"`).
 - [ ] **Phase 2: Audio Recording & Feedback Chimes**

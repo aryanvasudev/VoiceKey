@@ -1,0 +1,147 @@
+# VoiceKey 🎙️⌨️
+
+> **Distraction-free, warm-model voice-to-text dictation with kernel-level auto-paste for Linux (GNOME on Wayland).**
+
+VoiceKey brings the lightning-fast, seamless dictation experience of tools like Wispr Flow to modern Linux desktops. Triggered via a global keyboard shortcut, it records audio, transcribes speech locally using a pre-warmed INT8 model via `faster-whisper`, copies the text to your Wayland clipboard via `wl-copy`, and automatically simulates `Ctrl+V` into your active window via Linux kernel `/dev/uinput` device emulation.
+
+---
+
+## Key Features
+
+- **Blazing Fast (<300ms typical latency):** Keeps `faster-whisper` permanently loaded in RAM so there is zero model warm-up penalty per dictation.
+- **Native Wayland Auto-Paste:** Bypasses Wayland security restrictions by emitting simulated keypresses via Linux `/dev/uinput`.
+- **Sub-5ms CLI Dispatch:** Lightning-fast socket IPC client (`voicekey toggle`) that GNOME keyboard shortcuts can trigger instantly.
+- **Subtle Audio Feedback:** Non-blocking start/stop sound cues via PipeWire so you know exactly when speech is being recorded.
+- **Configurable TOML Settings:** Human-readable configuration at `~/.config/voicekey/config.toml`.
+
+---
+
+## Architecture Overview
+
+```
+                                      +--------------------------+
+                                      | GNOME Keyboard Shortcut  |
+                                      | (e.g., Ctrl+Alt+Space)   |
+                                      +-------------+------------+
+                                                    |
+                                                    v
+                                      +--------------------------+
+                                      |  CLI: `voicekey toggle`  |
+                                      +-------------+------------+
+                                                    | (Unix Domain Socket)
+                                                    v
++-------------------------------------------------------------------------------+
+| `voicekeyd` Background Daemon (Persistent in RAM)                             |
+|                                                                               |
+|  1. State Machine: IDLE <---> RECORDING                                       |
+|  2. Audio Engine (`sounddevice`): Streams 16kHz mono audio into RAM buffer   |
+|  3. Audio Chimes: Start beep (record began) / Stop chime (transcribing)      |
+|  4. Transcriber (`faster-whisper`): Preloaded CTranslate2 INT8 model          |
+|  5. Text Processing: Clean whitespace, filter hallucinations, format text      |
+|  6. Output Dispatcher:                                                        |
+|     - Copies text to system clipboard via `wl-copy`                           |
+|     - Injects virtual `Ctrl+V` key via `/dev/uinput` (`evdev.UInput`)        |
+|     - Emits desktop notification (`notify-send`)                              |
++-------------------------------------------------------------------------------+
+```
+
+---
+
+## Installation & Setup
+
+### Prerequisites
+- Python 3.12+
+- [`uv`](https://github.com/astral-sh/uv) (fast Python package manager)
+- PipeWire / ALSA audio
+- `wl-clipboard` (`wl-copy`)
+- Write access to `/dev/uinput` (or membership in `input` group with udev rule)
+
+### Clone & Install
+```bash
+git clone https://github.com/aryanvasudev/VoiceKey.git
+cd VoiceKey
+uv sync
+```
+
+---
+
+## Configuration
+
+VoiceKey automatically creates and reads `~/.config/voicekey/config.toml`:
+
+```toml
+[transcription]
+model_size = "base.en"        # "tiny.en", "base.en", "small.en", etc.
+device = "cpu"                # "cpu", "cuda", or "auto"
+compute_type = "int8"         # "int8" for lowest latency on CPU
+beam_size = 1                 # 1 for maximum speed (greedy search)
+vad_filter = true             # filter out background silence
+cpu_threads = 8               # CPU threads for faster-whisper
+
+[audio]
+sample_rate = 16000
+channels = 1
+sound_feedback = true         # Play subtle start/stop audio cues
+
+[output]
+mode = "auto_paste"           # "auto_paste" or "clipboard_only"
+paste_delay_ms = 50           # Delay after wl-copy before emitting Ctrl+V
+notify = true                 # Send desktop notification
+
+[daemon]
+socket_path = "~/.local/state/voicekey/daemon.sock"
+```
+
+To initialize or view the configuration:
+```bash
+# Print config path
+voicekey config --path
+
+# Initialize default configuration if not present
+voicekey config --init
+
+# Print active configuration
+voicekey config --show
+```
+
+---
+
+## CLI Usage
+
+| Command | Description |
+| :--- | :--- |
+| `voicekey toggle` | Primary hotkey action: starts recording if idle, stops & transcribes if recording |
+| `voicekey start` | Explicitly start dictation recording |
+| `voicekey stop` | Explicitly stop recording and trigger transcription & paste |
+| `voicekey status` | Query current status of `voicekeyd` |
+| `voicekey config` | View or initialize configuration |
+| `voicekeyd` | Start the persistent background daemon |
+
+---
+
+## Testing
+
+Run unit tests with pytest:
+```bash
+uv run pytest
+```
+
+---
+
+## Roadmap
+
+- [x] **Phase 1: Project Scaffolding & Configuration**
+  - Setup `pyproject.toml`, console entry points (`voicekey`, `voicekeyd`).
+  - Typed configuration manager (`config.py`) and TOML serializer/deserializer.
+  - Comprehensive unit test suite.
+- [ ] **Phase 2: Audio Recording & Feedback Chimes**
+  - Ring buffer audio recorder via `sounddevice` (16kHz 16-bit mono PCM).
+  - Audio start/stop cues using PipeWire.
+- [ ] **Phase 3: Warm Transcriber Engine**
+  - Persistent worker holding `faster-whisper` model in RAM.
+  - INT8 latency optimization and text post-processing.
+- [ ] **Phase 4: Daemon IPC & CLI Client**
+  - Unix Domain Socket server & async protocol.
+- [ ] **Phase 5: Wayland Auto-Paste & Hotkey Integration**
+  - Clipboard copy via `wl-copy` and `/dev/uinput` virtual `Ctrl+V`.
+- [ ] **Phase 6: Systemd Autostart & End-to-End Verification**
