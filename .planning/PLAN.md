@@ -41,11 +41,14 @@
 File: `~/.config/voicekey/config.toml`
 ```toml
 [transcription]
-model_size = "base.en"        # "tiny.en", "base.en", "small.en", or multilingual "base"
-device = "cpu"                # "cpu"
-compute_type = "int8"         # "int8" for lowest latency on i7-13650HX
+backend = "faster-whisper"    # "faster-whisper", "whisper.cpp", "openai-whisper", "whisperx"
+model_size = "base.en"        # "tiny.en", "base.en", "small.en", "distil-large-v3", or multilingual
+device = "cpu"                # "cpu", "cuda", or "auto"
+compute_type = "int8"         # "int8", "float16", "int4", etc.
 beam_size = 1                 # 1 for maximum speed (greedy search)
 vad_filter = true             # filter out background silence
+initial_prompt = ""           # Vocabulary biasing for technical jargon/names
+cpu_threads = 8               # CPU threads for inference
 
 [audio]
 sample_rate = 16000
@@ -58,16 +61,25 @@ paste_delay_ms = 50           # Small delay after wl-copy before emitting Ctrl+V
 notify = true                 # Send desktop notification with snippet
 ```
 
-### 2.2 Audio Capture & Chimes (`src/voicekey/audio.py`)
-- Captures microphone input asynchronously using `sounddevice.InputStream(samplerate=16000, channels=1, dtype='int16')`.
-- Buffers frames in memory during the recording state.
-- Emits non-blocking audio feedback using `pw-play` with built-in system sound effects or synthesized click tones.
+### 2.2 Audio Capture & Chimes (`src/voicekey/audio.py` & `src/voicekey/feedback.py`)
+- Captures microphone input asynchronously using `sounddevice.InputStream(samplerate=16000, channels=1, dtype='float32')`.
+- Buffers frames in memory during recording into 1D float32 normalized array.
+- Emits non-blocking audio cues via PipeWire (`pw-play`) with synthesized fallback tones.
 
-### 2.3 Transcriber Engine (`src/voicekey/transcriber.py`)
-- Preloads `WhisperModel(model_size, device="cpu", compute_type="int8", cpu_threads=8)` at daemon startup.
-- In-RAM model eliminates the ~2–3 second model load penalty on every dictation.
-- Inference on Intel 13th Gen CPU takes ~100–250ms for a sentence.
-- Normalizes output, strips leading/trailing blank artifacts, and applies capitalization.
+### 2.3 Multi-Backend Transcriber Engine & Hardware Doctor (`src/voicekey/transcriber/` & `src/voicekey/doctor.py`)
+- **Pluggable Architecture (`BaseTranscriber`):**
+  - Standardized interface: `is_available()`, `initialize()`, `transcribe(audio: np.ndarray) -> str`, `unload()`.
+  - **`faster-whisper` backend:** Prewarmed CTranslate2 INT8 model in RAM. High speed and low memory on modern x86/ARM CPUs and NVIDIA GPUs.
+  - **`whisper.cpp` backend:** Ultra-lightweight GGML C++ engine for low-spec machines, laptops without dGPUs, Raspberry Pi, and Intel iGPUs with zero PyTorch bloat.
+  - **`openai-whisper` backend:** Official reference PyTorch Whisper implementation.
+  - **`whisperX` backend:** Enhanced forced alignment and phoneme-level timing.
+- **Hardware Doctor (`voicekey doctor`):**
+  - Probes system CPU capabilities (AVX2, AVX-512, NEON), RAM size, and GPU availability (NVIDIA CUDA via nvidia-smi, AMD ROCm, Intel Arc/iGPU).
+  - Automatically assesses the machine and recommends the optimal backend, model size, and compute type.
+- **Vocabulary & Hotword Biasing:**
+  - Passes user-defined technical vocabulary / coding jargon in `initial_prompt` to guide transcription accuracy.
+- **Text Post-Processing (`src/voicekey/postprocess.py`):**
+  - Normalizes whitespace, strips repetitive hallucinations, and applies consistent capitalization and punctuation.
 
 ### 2.4 Wayland Clipboard & Paste Injection (`src/voicekey/paste.py`)
 - **Clipboard:** Calls `wl-copy` with the transcribed text.
