@@ -1,0 +1,29 @@
+[project]
+name = "voicekey"
+version = "0.1.0"
+description = "Lightweight distraction-free hotkey-driven voice-to-text dictation for Linux Wayland"
+readme = "README.md"
+authors = [
+    { name = "Aryan Vasudev", email = "aryanvasudev28@gmail.com" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "evdev>=2.0.0",
+    "faster-whisper>=1.2.1",
+    "numpy>=2.5.5",
+    "sounddevice>=0.5.6",
+    "tomli-w>=1.2.0",
+]
+
+[project.scripts]
+voicekey = "voicekey.cli:main"
+voicekeyd = "voicekey.daemon:main"
+
+[build-system]
+requires = ["uv_build>=0.13.9,<0.14.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.2.0",
+]
