@@ -23,8 +23,10 @@ from voicekey.notify import send_notification
 from voicekey.transcriber import BaseTranscriber, create_transcriber
 
 from voicekey.paste import PasteInjector, dispatch_paste
+from voicekey.postprocess import process_transcription
 
 logger = logging.getLogger("voicekeyd")
+
 
 
 class DaemonState(str, Enum):
@@ -109,6 +111,11 @@ class VoiceKeyDaemon:
         if len(audio_data) > 0 and self.transcriber is not None:
             text = await loop.run_in_executor(self._executor, self.transcriber.transcribe, audio_data)
             if text:
+                text = process_transcription(
+                    text,
+                    enable_normalization=self.config.transcription.normalize_text,
+                    enable_spoken_punctuation=self.config.transcription.spoken_punctuation,
+                )
                 _ok, paste_action = await loop.run_in_executor(
                     self._executor,
                     lambda: dispatch_paste(
@@ -118,6 +125,7 @@ class VoiceKeyDaemon:
                         injector=self.injector,
                     ),
                 )
+
 
         async with self._lock:
             self.state = DaemonState.IDLE
@@ -179,6 +187,11 @@ class VoiceKeyDaemon:
         if len(audio_data) > 0 and self.transcriber is not None:
             text = await loop.run_in_executor(self._executor, self.transcriber.transcribe, audio_data)
             if text:
+                text = process_transcription(
+                    text,
+                    enable_normalization=self.config.transcription.normalize_text,
+                    enable_spoken_punctuation=self.config.transcription.spoken_punctuation,
+                )
                 _ok, paste_action = await loop.run_in_executor(
                     self._executor,
                     lambda: dispatch_paste(
@@ -188,6 +201,7 @@ class VoiceKeyDaemon:
                         injector=self.injector,
                     ),
                 )
+
 
         async with self._lock:
             self.state = DaemonState.IDLE
