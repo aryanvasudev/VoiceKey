@@ -127,12 +127,29 @@ voicekey config --show
 | `voicekey toggle` | Primary hotkey action: starts recording if idle, stops & transcribes if recording |
 | `voicekey start` | Explicitly start dictation recording |
 | `voicekey stop` | Explicitly stop recording and trigger transcription & paste |
+| `voicekey test-paste` | Copy test string to clipboard and simulate Ctrl+V via /dev/uinput |
 | `voicekey test-audio` | Record audio sample to verify microphone input and sound cues |
 | `voicekey doctor` | Probe CPU/GPU hardware and recommend optimal backend & model |
 | `voicekey doctor --apply` | Automatically tune and write optimal settings to `config.toml` |
 | `voicekey status` | Query current status of `voicekeyd` |
 | `voicekey config` | View or initialize configuration |
 | `voicekeyd` | Start the persistent background daemon |
+
+---
+
+## GNOME Hotkey Setup
+
+VoiceKey includes an automated setup script to bind `voicekey toggle` to any global GNOME shortcut (default `Super+V` or custom):
+
+```bash
+# Configure global GNOME keybinding (Super+V by default)
+./scripts/setup_gnome_hotkey.sh
+
+# Or bind to a custom keybinding
+./scripts/setup_gnome_hotkey.sh "F9"
+```
+
+Ensure your user has read/write permission to `/dev/uinput` (e.g. member of the `input` group or udev rule) for automatic `Ctrl+V` keystroke injection.
 
 ---
 
@@ -164,6 +181,9 @@ uv run pytest
   - Unix Domain Socket server (`~/.local/state/voicekey/daemon.sock`) with automatic stale socket cleanup.
   - Sub-5ms CLI client dispatch for `voicekey toggle`, `voicekey status`, `voicekey start`, and `voicekey stop`.
   - Non-blocking threadpool transcription worker to ensure immediate IPC responsiveness.
-- [ ] **Phase 5: Wayland Auto-Paste & Hotkey Integration**
-  - Clipboard copy via `wl-copy` and `/dev/uinput` virtual `Ctrl+V`.
+- [x] **Phase 5: Wayland Auto-Paste & Hotkey Integration**
+  - Clipboard copy via `wl-copy` and direct `/dev/uinput` virtual `Ctrl+V` key injection (`evdev`).
+  - Automated GNOME global keybinding configuration helper script (`scripts/setup_gnome_hotkey.sh`).
+  - Clipboard/uinput diagnostics (`voicekey test-paste` and `voicekey doctor` uinput check).
 - [ ] **Phase 6: Systemd Autostart & End-to-End Verification**
+

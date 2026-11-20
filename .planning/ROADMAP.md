@@ -18,7 +18,7 @@
 - [x] **Phase 4: Daemon IPC & CLI Client**
   - Unix Domain Socket server (`~/.local/state/voicekey/daemon.sock`).
   - Instant CLI client (`voicekey toggle`, `voicekey start`, `voicekey stop`, `voicekey status`, `voicekey doctor`).
-- [ ] **Phase 5: Wayland Auto-Paste & Hotkey Integration**
+- [x] **Phase 5: Wayland Auto-Paste & Hotkey Integration**
   - Fast clipboard copy using `wl-copy`.
   - Automatic `Ctrl+V` key injection via `/dev/uinput` (`evdev.UInput`).
   - GNOME shortcut binding script (`gsettings`).
