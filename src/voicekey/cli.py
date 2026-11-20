@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from pathlib import Path
 
@@ -187,19 +188,103 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "doctor":
         return handle_doctor_command(args, config)
 
-    if args.command in {"toggle", "start", "stop", "status"}:
-        socket_path = config.resolved_socket_path()
-        if not socket_path.exists():
-            print(
-                f"[voicekey] Daemon socket not found at '{socket_path}'.\n"
-                f"Please start the daemon with: voicekeyd",
-                file=sys.stderr,
-            )
+def handle_daemon_command(command: str, socket_path: Path) -> int:
+    """Send command to daemon via Unix domain socket and print formatted response."""
+    from voicekey.ipc import DaemonNotRunningError, IPCError, send_daemon_command
+
+    try:
+        resp = send_daemon_command(command, socket_path=socket_path)
+    except DaemonNotRunningError:
+        print(
+            f"[voicekey] Daemon is not running (socket '{socket_path}' not accessible).\n"
+            f"Please start the daemon with: voicekeyd",
+            file=sys.stderr,
+        )
+        return 1
+    except IPCError as e:
+        print(f"[voicekey] Communication error: {e}", file=sys.stderr)
+        return 1
+
+    if command == "status":
+        state = resp.get("state", "unknown").upper()
+        backend = resp.get("backend", "unknown")
+        model = resp.get("model_size", "unknown")
+        device = resp.get("device", "cpu")
+        warm = "Yes" if resp.get("model_warm") else "No"
+        uptime = resp.get("uptime_seconds", 0)
+        ver = resp.get("version", __version__)
+        print("VoiceKey Daemon Status:")
+        print(f"  State:        {state}")
+        print(f"  Backend:      {backend}")
+        print(f"  Model:        {model} ({device})")
+        print(f"  Model Warm:   {warm}")
+        print(f"  Uptime:       {uptime:.1f}s")
+        print(f"  Version:      {ver}")
+        return 0
+
+    if command == "toggle":
+        state = resp.get("state", "")
+        if state == "recording":
+            print("[voicekey] 🔴 Recording started...")
+            return 0
+        elif state == "idle":
+            dur = resp.get("duration", 0)
+            text = resp.get("text", "")
+            print(f"[voicekey] ⏹️ Recording stopped ({dur:.1f}s)")
+            if text:
+                print(f"[voicekey] Transcribed: \"{text}\"")
+            return 0
+        elif resp.get("status") == "busy":
+            print(f"[voicekey] ⏳ {resp.get('message', 'Busy')}")
+            return 0
+
+    if command == "start":
+        if resp.get("status") == "ok":
+            print("[voicekey] 🔴 Recording started")
+            return 0
+        else:
+            print(f"[voicekey] {resp.get('message', 'Could not start')}", file=sys.stderr)
             return 1
 
-        # Phase 4 will implement the full IPC client socket exchange.
-        print(f"[voicekey] Command '{args.command}' sent to {socket_path}")
+    if command == "stop":
+        if resp.get("status") == "ok":
+            text = resp.get("text", "")
+            dur = resp.get("duration", 0)
+            print(f"[voicekey] ⏹️ Stopped ({dur:.1f}s)")
+            if text:
+                print(f"[voicekey] Transcribed: \"{text}\"")
+            return 0
+        else:
+            print(f"[voicekey] {resp.get('message', 'Could not stop')}", file=sys.stderr)
+            return 1
+
+    print(json.dumps(resp, indent=2))
+    return 0
+
+
+def main(argv: list[str] | None = None) -> int:
+    """CLI main entry point."""
+    parser = create_parser()
+    args = parser.parse_args(argv)
+
+    if not args.command:
+        parser.print_help()
         return 0
+
+    config = load_config(args.config, create_if_missing=False)
+
+    if args.command == "config":
+        return handle_config_command(args)
+
+    if args.command == "test-audio":
+        return handle_test_audio_command(args, config)
+
+    if args.command == "doctor":
+        return handle_doctor_command(args, config)
+
+    if args.command in {"toggle", "start", "stop", "status"}:
+        socket_path = config.resolved_socket_path()
+        return handle_daemon_command(args.command, socket_path)
 
     return 0
 
