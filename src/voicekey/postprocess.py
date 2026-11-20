@@ -35,6 +35,9 @@ def apply_spoken_punctuation(text: str) -> str:
     # Ensure space after punctuation if followed by word character, e.g. "word,next" -> "word, next"
     result = re.sub(r"([,.:;?!])([A-Za-z0-9])", r"\1 \2", result)
 
+    # Clean up whitespace around newlines
+    result = re.sub(r"[ \t]*\n[ \t]*", "\n", result)
+
     # Capitalize first letter after period, exclamation mark, question mark, or newline
     result = re.sub(
         r"([.!?\n]\s*)([a-z])",
@@ -52,6 +55,9 @@ def normalize_text(text: str) -> str:
 
     # Strip surrounding whitespace
     cleaned = text.strip()
+
+    # Clean whitespace around newlines
+    cleaned = re.sub(r"[ \t]*\n[ \t]*", "\n", cleaned)
 
     # Collapse multiple inline spaces (preserve newlines)
     cleaned = re.sub(r"[ \t]+", " ", cleaned)
