@@ -77,7 +77,59 @@ def test_cli_socket_missing_error(capsys: pytest.CaptureFixture[str], tmp_path: 
     exit_code = cli.main(["--config", str(conf), "toggle"])
     assert exit_code == 1
     captured = capsys.readouterr()
-    assert "Daemon socket not found" in captured.err
+    assert "Daemon is not running" in captured.err
+
+
+def test_cli_daemon_commands_mocked(capsys: pytest.CaptureFixture[str]):
+    """CLI formats status, toggle, start, and stop responses cleanly."""
+    from unittest.mock import patch
+
+    # Status
+    with patch("voicekey.ipc.send_daemon_command", return_value={
+        "status": "ok",
+        "state": "idle",
+        "backend": "faster-whisper",
+        "model_size": "base.en",
+        "device": "cpu",
+        "model_warm": True,
+        "uptime_seconds": 15.5,
+        "version": "0.1.0",
+    }):
+        assert cli.main(["status"]) == 0
+        captured = capsys.readouterr()
+        assert "VoiceKey Daemon Status:" in captured.out
+        assert "IDLE" in captured.out
+        assert "faster-whisper" in captured.out
+
+    # Toggle (start recording)
+    with patch("voicekey.ipc.send_daemon_command", return_value={"status": "ok", "state": "recording"}):
+        assert cli.main(["toggle"]) == 0
+        captured = capsys.readouterr()
+        assert "Recording started" in captured.out
+
+    # Toggle (stop recording and transcribed)
+    with patch("voicekey.ipc.send_daemon_command", return_value={
+        "status": "ok",
+        "state": "idle",
+        "text": "dictated sentence",
+        "duration": 2.1,
+    }):
+        assert cli.main(["toggle"]) == 0
+        captured = capsys.readouterr()
+        assert "Recording stopped (2.1s)" in captured.out
+        assert "dictated sentence" in captured.out
+
+    # Start
+    with patch("voicekey.ipc.send_daemon_command", return_value={"status": "ok"}):
+        assert cli.main(["start"]) == 0
+        captured = capsys.readouterr()
+        assert "Recording started" in captured.out
+
+    # Stop
+    with patch("voicekey.ipc.send_daemon_command", return_value={"status": "ok", "text": "result", "duration": 1.0}):
+        assert cli.main(["stop"]) == 0
+        captured = capsys.readouterr()
+        assert "Stopped (1.0s)" in captured.out
 
 
 def test_daemon_main_initializes(tmp_path: Path):
