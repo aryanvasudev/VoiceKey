@@ -5,7 +5,7 @@
 - [x] **Phase 1: Project Scaffolding & Configuration**
   - Setup `pyproject.toml`, console entry points (`voicekey`, `voicekeyd`).
   - Implement config manager (`~/.config/voicekey/config.toml`) with sensible defaults (`model="base.en"`, `device="cpu"`, `compute_type="int8"`).
-- [ ] **Phase 2: Audio Recording & Feedback Chimes**
+- [x] **Phase 2: Audio Recording & Feedback Chimes**
   - Ring buffer audio recorder via `sounddevice` (16kHz 16-bit mono PCM).
   - Audio start/stop chimes using `pw-play` or synthesized tones.
   - Desktop notifications using `notify-send`.

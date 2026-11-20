@@ -113,6 +113,7 @@ voicekey config --show
 | `voicekey toggle` | Primary hotkey action: starts recording if idle, stops & transcribes if recording |
 | `voicekey start` | Explicitly start dictation recording |
 | `voicekey stop` | Explicitly stop recording and trigger transcription & paste |
+| `voicekey test-audio` | Record audio sample to verify microphone input and sound cues |
 | `voicekey status` | Query current status of `voicekeyd` |
 | `voicekey config` | View or initialize configuration |
 | `voicekeyd` | Start the persistent background daemon |
@@ -134,9 +135,10 @@ uv run pytest
   - Setup `pyproject.toml`, console entry points (`voicekey`, `voicekeyd`).
   - Typed configuration manager (`config.py`) and TOML serializer/deserializer.
   - Comprehensive unit test suite.
-- [ ] **Phase 2: Audio Recording & Feedback Chimes**
-  - Ring buffer audio recorder via `sounddevice` (16kHz 16-bit mono PCM).
-  - Audio start/stop cues using PipeWire.
+- [x] **Phase 2: Audio Recording & Feedback Chimes**
+  - Ring buffer audio recorder via `sounddevice` (16kHz mono float32 RAM buffer).
+  - Low-latency non-blocking audio start/stop cues via `pw-play` with synthesized fallback.
+  - Desktop notification integration via `notify-send`.
 - [ ] **Phase 3: Warm Transcriber Engine**
   - Persistent worker holding `faster-whisper` model in RAM.
   - INT8 latency optimization and text post-processing.
