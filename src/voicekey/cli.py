@@ -82,6 +82,14 @@ def create_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Automatically apply recommended engine and model settings to config.toml",
     )
+    # `voicekey test-paste`
+    paste_parser = subparsers.add_parser("test-paste", help="Test clipboard copy and uinput virtual auto-paste")
+    paste_parser.add_argument(
+        "--text",
+        type=str,
+        default="VoiceKey auto-paste test!",
+        help="Custom text string to paste (default: 'VoiceKey auto-paste test!')",
+    )
 
     return parser
 
@@ -262,6 +270,30 @@ def handle_daemon_command(command: str, socket_path: Path) -> int:
     return 0
 
 
+def handle_test_paste_command(args: argparse.Namespace, config) -> int:
+    """Handle `voicekey test-paste` command."""
+    import time
+    from voicekey.paste import check_uinput_accessible, dispatch_paste
+    from voicekey.notify import send_notification
+
+    print(f"[voicekey] Testing output dispatch with text: '{args.text}'")
+    ok, msg = check_uinput_accessible()
+    print(f"  /dev/uinput:      {'Accessible (Ready)' if ok else 'Not accessible'}")
+    if not ok:
+        print(f"  Note: {msg}")
+
+    print("  Triggering output in 1 second... (focus target window)")
+    time.sleep(1.0)
+    success, action = dispatch_paste(
+        text=args.text,
+        mode=config.output.mode,
+        paste_delay_ms=config.output.paste_delay_ms,
+    )
+    print(f"  Action taken:     {action} (success={success})")
+    send_notification("VoiceKey", f"Test paste completed: {action}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     """CLI main entry point."""
     parser = create_parser()
@@ -281,6 +313,9 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "doctor":
         return handle_doctor_command(args, config)
+
+    if args.command == "test-paste":
+        return handle_test_paste_command(args, config)
 
     if args.command in {"toggle", "start", "stop", "status"}:
         socket_path = config.resolved_socket_path()

@@ -35,6 +35,9 @@ class HardwareProfile:
     has_whisper_cpp_bin: bool = False
     whisper_cpp_path: str = ""
     installed_backends: list[str] = field(default_factory=list)
+    has_uinput: bool = False
+    uinput_message: str = ""
+    clipboard_tool: str = "none"
 
 
 @dataclass
@@ -169,6 +172,11 @@ def probe_hardware() -> HardwareProfile:
     if has_whisper_cpp:
         installed.append("whisper.cpp")
 
+    # Check clipboard and uinput
+    from voicekey.paste import check_uinput_accessible
+    has_uinput, uinput_msg = check_uinput_accessible()
+    clip_tool = "wl-copy (Wayland)" if shutil.which("wl-copy") else ("xclip (X11)" if shutil.which("xclip") else "None found")
+
     return HardwareProfile(
         arch=arch,
         cpu_model=cpu_model,
@@ -181,6 +189,9 @@ def probe_hardware() -> HardwareProfile:
         has_whisper_cpp_bin=has_whisper_cpp,
         whisper_cpp_path=whisper_cpp_bin or "",
         installed_backends=installed,
+        has_uinput=has_uinput,
+        uinput_message=uinput_msg,
+        clipboard_tool=clip_tool,
     )
 
 
@@ -247,6 +258,8 @@ def recommend_setup(profile: HardwareProfile) -> HardwareRecommendation:
 
 def format_doctor_report(profile: HardwareProfile, rec: HardwareRecommendation) -> str:
     """Format human-readable diagnostic report for CLI output."""
+    uinput_status = "READY (Auto-Paste OK)" if profile.has_uinput else "PERMISSION NEEDED (Clipboard fallback)"
+
     lines: list[str] = [
         "===========================================================",
         "           VoiceKey Hardware & Engine Doctor               ",
@@ -256,6 +269,8 @@ def format_doctor_report(profile: HardwareProfile, rec: HardwareRecommendation) 
         f"  CPU Cores:         {profile.cpu_cores} threads",
         f"  Vector Accel:      AVX2: {'YES' if profile.has_avx2 else 'NO'} | AVX-512: {'YES' if profile.has_avx512 else 'NO'} | NEON: {'YES' if profile.has_neon else 'NO'}",
         f"  Total RAM:         {profile.total_ram_gb:.1f} GB",
+        f"  Clipboard Tool:    {profile.clipboard_tool}",
+        f"  Virtual Input:     /dev/uinput: {uinput_status}",
     ]
 
     if profile.gpus:

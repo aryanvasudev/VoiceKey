@@ -187,3 +187,19 @@ def test_cli_doctor_apply(capsys: pytest.CaptureFixture[str], tmp_path: Path):
 
     captured = capsys.readouterr()
     assert "Successfully applied recommended settings" in captured.out
+
+
+def test_cli_test_paste(capsys: pytest.CaptureFixture[str]):
+    """`voicekey test-paste` runs paste dispatch routine and prints results."""
+    from unittest.mock import patch
+
+    with patch("time.sleep", return_value=None), \
+         patch("voicekey.paste.check_uinput_accessible", return_value=(True, "OK")), \
+         patch("voicekey.paste.dispatch_paste", return_value=(True, "pasted")), \
+         patch("voicekey.notify.send_notification", return_value=True):
+        exit_code = cli.main(["test-paste", "--text", "sample text"])
+        assert exit_code == 0
+
+    captured = capsys.readouterr()
+    assert "Testing output dispatch with text: 'sample text'" in captured.out
+    assert "Action taken:     pasted" in captured.out
