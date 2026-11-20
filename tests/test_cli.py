@@ -82,12 +82,14 @@ def test_cli_socket_missing_error(capsys: pytest.CaptureFixture[str], tmp_path: 
 
 def test_daemon_main_initializes(tmp_path: Path):
     """Daemon parses parameters and runs initialization without crashing."""
+    from unittest.mock import patch
     conf = tmp_path / "daemon_config.toml"
     sock = tmp_path / "daemon.sock"
 
-    exit_code = daemon.main(["--config", str(conf), "--socket", str(sock), "--debug"])
-    assert exit_code == 0
-    assert conf.exists()
+    with patch("voicekey.daemon.VoiceKeyDaemon.start", return_value=None):
+        exit_code = daemon.main(["--config", str(conf), "--socket", str(sock), "--debug"])
+        assert exit_code == 0
+        assert conf.exists()
 
 
 def test_cli_test_audio(capsys: pytest.CaptureFixture[str]):
