@@ -96,18 +96,18 @@ class VoiceKeyDaemon:
             # State is RECORDING -> stop and transcribe
             self.state = DaemonState.TRANSCRIBING
 
-        # Stop recording outside lock to ensure swift feedback
-        audio_data = self.recorder.stop(play_cue=True)
+        loop = asyncio.get_running_loop()
+        # Stop recording in worker thread to prevent event loop delay
+        audio_data = await loop.run_in_executor(self._executor, lambda: self.recorder.stop(play_cue=True))
         duration = len(audio_data) / self.config.audio.sample_rate if self.config.audio.sample_rate > 0 else 0.0
         rms = AudioRecorder.calculate_rms(audio_data)
 
         if self.config.output.notify:
             send_notification("VoiceKey", "Transcribing speech...", timeout_ms=1500)
 
-        # Run transcription in threadpool to keep event loop responsive
-        loop = asyncio.get_running_loop()
         text = ""
         paste_action = "none"
+
         if len(audio_data) > 0 and self.transcriber is not None:
             text = await loop.run_in_executor(self._executor, self.transcriber.transcribe, audio_data)
             if text:
@@ -177,13 +177,15 @@ class VoiceKeyDaemon:
                 }
             self.state = DaemonState.TRANSCRIBING
 
-        audio_data = self.recorder.stop(play_cue=True)
+        loop = asyncio.get_running_loop()
+
+        audio_data = await loop.run_in_executor(self._executor, lambda: self.recorder.stop(play_cue=True))
         duration = len(audio_data) / self.config.audio.sample_rate if self.config.audio.sample_rate > 0 else 0.0
         rms = AudioRecorder.calculate_rms(audio_data)
 
-        loop = asyncio.get_running_loop()
         text = ""
         paste_action = "none"
+
         if len(audio_data) > 0 and self.transcriber is not None:
             text = await loop.run_in_executor(self._executor, self.transcriber.transcribe, audio_data)
             if text:

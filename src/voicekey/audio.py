@@ -108,13 +108,6 @@ class AudioRecorder:
             stream = self._stream
             self._stream = None
 
-            if stream is not None:
-                try:
-                    stream.stop()
-                    stream.close()
-                except Exception as e:
-                    logger.warning("Error closing audio stream: %s", e)
-
             if not self._frames:
                 audio_data = np.empty(0, dtype=np.float32)
             else:
@@ -122,12 +115,21 @@ class AudioRecorder:
 
             self._frames.clear()
 
+        # Stop and close stream outside self._lock to avoid deadlock with PortAudio callback thread
+        if stream is not None:
+            try:
+                stream.stop()
+                stream.close()
+            except Exception as e:
+                logger.warning("Error closing audio stream: %s", e)
+
         if play_cue:
             self.feedback.play_stop()
 
         duration = len(audio_data) / self.config.sample_rate if self.config.sample_rate > 0 else 0.0
         logger.debug("Audio recording stopped. Duration: %.2fs (%d samples).", duration, len(audio_data))
         return audio_data
+
 
     @staticmethod
     def calculate_rms(audio_data: np.ndarray) -> float:
