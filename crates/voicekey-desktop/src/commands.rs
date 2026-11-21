@@ -172,7 +172,8 @@ pub fn save_overlay_position(x: f64, y: f64) -> Result<(), String> {
 /// Prevents window managers (e.g. GNOME Mutter on Wayland/XWayland) from resetting position near cursor.
 pub fn show_overlay_window(win: &tauri::WebviewWindow) {
     let settings = load_settings();
-    let (target_x, target_y) = if let (Some(x), Some(y)) = (settings.overlay_x, settings.overlay_y) {
+    let (target_x, target_y) = if let (Some(x), Some(y)) = (settings.overlay_x, settings.overlay_y)
+    {
         (x.max(0.0), y.max(0.0))
     } else if let Ok(Some(monitor)) = win.current_monitor() {
         let size = monitor.size();
@@ -186,7 +187,10 @@ pub fn show_overlay_window(win: &tauri::WebviewWindow) {
         (100.0, 32.0)
     };
 
-    let pos = tauri::Position::Logical(tauri::LogicalPosition { x: target_x, y: target_y });
+    let pos = tauri::Position::Logical(tauri::LogicalPosition {
+        x: target_x,
+        y: target_y,
+    });
 
     // 1. Pre-configure position prior to show
     let _ = win.set_position(pos);
@@ -225,4 +229,3 @@ pub fn hide_overlay(app: AppHandle) -> Result<(), String> {
     }
     Ok(())
 }
-

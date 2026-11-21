@@ -56,7 +56,7 @@ Detailed technical specifications and loophole mitigations are documented in [.p
   - Windows: Self-contained `.msi` and NSIS `.exe` installers with WebView2 verification.
   - Linux: Standalone AppImage, `.deb`, `.rpm`, and udev rule installer.
   - Multi-platform automated GitHub Actions CI/CD matrix.
-- [ ] **Phase 13: Android Core FFI (`uniffi-rs`)**
+- [x] **Phase 13: Android Core FFI (`uniffi-rs`)**
   - UniFFI interface definitions for `voicekey-core`.
   - Android NDK (`cargo-ndk`) cross-compilation for `aarch64-linux-android`.
   - Android `.aar` library packaging and Kotlin test harness.

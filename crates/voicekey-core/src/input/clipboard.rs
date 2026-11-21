@@ -21,7 +21,8 @@ impl ClipboardManager {
         #[cfg(target_os = "android")]
         {
             Err(CoreError::Audio(
-                "Android clipboard is managed by InputMethodService / Android ClipboardManager".into(),
+                "Android clipboard is managed by InputMethodService / Android ClipboardManager"
+                    .into(),
             ))
         }
 
@@ -64,7 +65,8 @@ impl ClipboardManager {
         {
             let _ = text;
             return Err(CoreError::Audio(
-                "Android clipboard is managed by InputMethodService / Android ClipboardManager".into(),
+                "Android clipboard is managed by InputMethodService / Android ClipboardManager"
+                    .into(),
             ));
         }
 

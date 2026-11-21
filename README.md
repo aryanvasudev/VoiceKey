@@ -202,8 +202,22 @@ cargo run -p voicekey-desktop
 - Download higher-accuracy models (`base.en` or `small.en`) directly within the UI.
 - Use the floating pill to click and dictate or configure your preferred global hotkey.
 
-### 6. Run Workspace Test Suite
-Run the 52 unit and integration tests across all workspace crates:
+### 6. Android Core FFI & AAR Packaging
+To cross-compile the native Rust core libraries for Android (`arm64-v8a` and `x86_64`) using `cargo-ndk` and generate foreign language Kotlin bindings via UniFFI:
+```bash
+# Build native libraries (.so) and generate UniFFI Kotlin bindings
+./scripts/build_android_native.sh arm64-v8a x86_64
+
+# Package the Android Archive (.aar) library
+./scripts/package_android_aar.sh
+```
+The resulting `target/voicekey-core.aar` contains:
+- `jni/arm64-v8a/libvoicekey_android_ffi.so` & `jni/x86_64/libvoicekey_android_ffi.so`
+- `classes.jar` & ProGuard rules preserving JNA bindings
+- `AndroidManifest.xml`
+
+### 7. Run Workspace Test Suite
+Run the unit and integration tests across all workspace crates:
 ```bash
 cargo test --workspace
 ```
@@ -215,8 +229,10 @@ cargo test --workspace
 ```
 VoiceKey/
 ├── .github/workflows/        # CI test matrix & tagged release builder
-│   ├── ci.yml                # Linux & Windows formatting, linting, tests
+│   ├── ci.yml                # Linux, Windows & Android FFI test matrix
 │   └── release.yml           # Automated release asset packaging & publishing
+├── android/                  # Android Gradle library project
+│   └── voicekey-core/        # AAR library module, Kotlin wrapper & tests
 ├── crates/
 │   ├── voicekey-core/        # Shared cross-platform engine
 │   │   ├── src/audio/        # Capture (cpal), downmixing, rubato resampler, buffer
@@ -224,12 +240,16 @@ VoiceKey/
 │   │   ├── src/vad/          # Energy gating & silence trimming
 │   │   ├── src/input/        # Linux /dev/uinput & Windows SendInput auto-paste
 │   │   └── src/text/         # Normalizer, spoken punctuation, vocabulary biasing
+│   ├── voicekey-android-ffi/ # UniFFI Android FFI cdylib & Kotlin bindgen
 │   ├── voicekey-cli/         # Standalone headless CLI tool (doctor, devices, listen)
 │   └── voicekey-desktop/     # Tauri v2 desktop shell
 │       ├── src/              # Tokio actor state machine, system tray, models manager
 │       ├── ui/               # Floating recording pill & settings web interface
 │       └── tauri.conf.json   # Multi-platform bundle configuration
 └── scripts/
+    ├── build_android_native.sh   # Android NDK cross-compilation & bindgen script
+    ├── package_android_aar.sh    # Production .aar packaging script
+    ├── cmake/                    # Wrapped Android CMake toolchains
     ├── 99-voicekey-uinput.rules  # Linux udev rule for non-root uinput access
     ├── voicekey.desktop          # XDG desktop application entry
     └── install_linux_desktop.sh  # Automated desktop installation script

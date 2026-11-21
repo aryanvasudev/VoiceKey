@@ -115,9 +115,7 @@ impl VoiceKeyEngine {
 
         let res = guard
             .transcribe_with_prompt(&samples, initial_prompt.as_deref())
-            .map_err(|e| VoiceKeyFfiError::TranscriptionError {
-                msg: e.to_string(),
-            })?;
+            .map_err(|e| VoiceKeyFfiError::TranscriptionError { msg: e.to_string() })?;
 
         Ok(TranscriptionOutput {
             raw_text: res.raw_text,
@@ -195,6 +193,7 @@ pub fn voicekey_calculate_peak(samples: Vec<f32>) -> f32 {
 /// Convert raw 16-bit little-endian PCM bytes to 16kHz mono float32 samples.
 /// Supports downmixing multi-channel audio and resampling to 16kHz.
 #[uniffi::export]
+#[allow(clippy::manual_is_multiple_of, clippy::chunks_exact_to_as_chunks)]
 pub fn voicekey_pcm16_to_samples(
     pcm_bytes: Vec<u8>,
     sample_rate: u32,
@@ -307,6 +306,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::needless_range_loop)]
     fn test_vad_functions() {
         let silence = vec![0.0f32; 16000];
         assert!(!voicekey_has_speech(silence));

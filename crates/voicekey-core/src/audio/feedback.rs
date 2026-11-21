@@ -57,7 +57,11 @@ pub fn play_sound_cue(cue: SoundCue) {
                 SoundCue::Error => (330, 150),
             };
             let _ = std::process::Command::new("powershell")
-                .args(["-NoProfile", "-Command", &format!("[console]::beep({freq}, {dur})")])
+                .args([
+                    "-NoProfile",
+                    "-Command",
+                    &format!("[console]::beep({freq}, {dur})"),
+                ])
                 .stdout(std::process::Stdio::null())
                 .stderr(std::process::Stdio::null())
                 .status();
