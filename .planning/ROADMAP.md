@@ -48,7 +48,7 @@ Detailed technical specifications and loophole mitigations are documented in [.p
   - Tokio actor state machine (`Idle` <-> `Recording` <-> `Transcribing` <-> `Pasting`).
   - Native System Tray menu with color-coded status, model selection, and mute toggle.
   - Autostart integration via `tauri-plugin-autostart`.
-- [ ] **Phase 11: Floating Overlay Pill, Settings UI & Model Manager**
+- [x] **Phase 11: Floating Overlay Pill, Settings UI & Model Manager**
   - Lightweight transparent, draggable floating recording pill with real-time waveform animation.
   - Settings window for device selection, hotkey customization, and custom vocabulary dictionary.
   - Model Manager for background download and SHA-256 verification of quantized GGML models.

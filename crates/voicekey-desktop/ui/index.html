@@ -3,44 +3,946 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>VoiceKey Desktop</title>
+  <title>VoiceKey</title>
   <style>
-    body {
+    :root {
+      --bg-pill: rgba(22, 24, 33, 0.94);
+      --border-pill: rgba(255, 255, 255, 0.14);
+      --bg-dark: #12131c;
+      --bg-card: #1c1e2b;
+      --bg-card-hover: #26293a;
+      --accent: #6366f1;
+      --accent-hover: #4f46e5;
+      --green: #10b981;
+      --red: #ef4444;
+      --amber: #f59e0b;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+    }
+
+    * {
+      box-sizing: border-box;
       margin: 0;
-      padding: 16px;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    body {
       background: transparent;
-      color: #fff;
+      color: var(--text-main);
+      overflow: hidden;
       user-select: none;
     }
-    .pill {
+
+    /* ============================================================
+       1. FLOATING OVERLAY PILL VIEW (#overlay)
+       ============================================================ */
+    #overlay-container {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 100vw;
+      height: 100vh;
+      padding: 6px;
+    }
+
+    .pill-card {
       display: inline-flex;
       align-items: center;
-      gap: 10px;
-      padding: 10px 18px;
-      background: rgba(25, 27, 34, 0.92);
-      border: 1px solid rgba(255, 255, 255, 0.12);
-      border-radius: 30px;
-      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
-      backdrop-filter: blur(12px);
+      gap: 12px;
+      padding: 8px 16px;
+      background: var(--bg-pill);
+      border: 1px solid var(--border-pill);
+      border-radius: 9999px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6), 0 0 1px rgba(255, 255, 255, 0.2);
+      backdrop-filter: blur(16px);
+      cursor: grab;
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
     }
-    .dot {
-      width: 10px;
-      height: 10px;
+    .pill-card:active {
+      cursor: grabbing;
+    }
+
+    .status-dot {
+      width: 12px;
+      height: 12px;
       border-radius: 50%;
-      background: #2ecc71;
+      background: var(--green);
+      box-shadow: 0 0 10px var(--green);
+      transition: all 0.3s ease;
     }
-    .status-text {
+    .status-dot.recording {
+      background: var(--red);
+      box-shadow: 0 0 14px var(--red);
+      animation: pulse-recording 1.2s infinite ease-in-out;
+    }
+    .status-dot.transcribing {
+      background: var(--amber);
+      box-shadow: 0 0 12px var(--amber);
+      animation: pulse-transcribing 0.8s infinite alternate;
+    }
+
+    @keyframes pulse-recording {
+      0% { transform: scale(0.9); opacity: 0.8; }
+      50% { transform: scale(1.2); opacity: 1; }
+      100% { transform: scale(0.9); opacity: 0.8; }
+    }
+    @keyframes pulse-transcribing {
+      0% { transform: scale(1.0); }
+      100% { transform: scale(1.3); }
+    }
+
+    .pill-info {
+      display: flex;
+      flex-direction: column;
+      min-width: 90px;
+    }
+    .pill-title {
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 0.3px;
+    }
+    .pill-timer {
+      font-size: 11px;
+      color: var(--text-muted);
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* Live Audio Waveform animation */
+    .waveform {
+      display: none;
+      align-items: center;
+      gap: 3px;
+      height: 22px;
+    }
+    .waveform.active {
+      display: flex;
+    }
+    .waveform-bar {
+      width: 3px;
+      height: 6px;
+      background: var(--red);
+      border-radius: 2px;
+      animation: wave-bar 0.8s ease-in-out infinite alternate;
+    }
+    .waveform-bar:nth-child(2) { animation-delay: 0.15s; height: 12px; }
+    .waveform-bar:nth-child(3) { animation-delay: 0.3s; height: 18px; }
+    .waveform-bar:nth-child(4) { animation-delay: 0.45s; height: 10px; }
+    .waveform-bar:nth-child(5) { animation-delay: 0.2s; height: 16px; }
+
+    @keyframes wave-bar {
+      0% { transform: scaleY(0.4); }
+      100% { transform: scaleY(1.4); }
+    }
+
+    .pill-actions {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .pill-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      color: var(--text-main);
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    .pill-btn:hover {
+      background: rgba(255, 255, 255, 0.2);
+      transform: scale(1.08);
+    }
+    .pill-btn.stop {
+      background: rgba(239, 68, 68, 0.25);
+      border-color: rgba(239, 68, 68, 0.4);
+      color: #fca5a5;
+    }
+    .pill-btn.stop:hover {
+      background: rgba(239, 68, 68, 0.45);
+    }
+
+    /* ============================================================
+       2. SETTINGS & MODEL MANAGER WINDOW (#settings)
+       ============================================================ */
+    #settings-container {
+      display: none;
+      width: 100vw;
+      height: 100vh;
+      background: var(--bg-dark);
+      overflow-y: auto;
+      user-select: text;
+    }
+
+    .settings-layout {
+      display: flex;
+      height: 100%;
+    }
+
+    /* Sidebar Navigation */
+    .settings-sidebar {
+      width: 200px;
+      background: #171824;
+      border-right: 1px solid rgba(255, 255, 255, 0.08);
+      padding: 24px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .app-brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 0 12px 20px 12px;
+      font-size: 18px;
+      font-weight: 700;
+      color: #fff;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      margin-bottom: 12px;
+    }
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 14px;
+      border-radius: 8px;
+      color: var(--text-muted);
       font-size: 14px;
       font-weight: 500;
-      color: #e2e8f0;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    .nav-item:hover {
+      color: var(--text-main);
+      background: rgba(255, 255, 255, 0.05);
+    }
+    .nav-item.active {
+      color: #fff;
+      background: var(--accent);
+    }
+
+    /* Content Area */
+    .settings-content {
+      flex: 1;
+      padding: 32px 40px;
+      overflow-y: auto;
+    }
+    .tab-section {
+      display: none;
+    }
+    .tab-section.active {
+      display: block;
+    }
+
+    .section-title {
+      font-size: 22px;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+    .section-desc {
+      font-size: 14px;
+      color: var(--text-muted);
+      margin-bottom: 24px;
+      line-height: 1.5;
+    }
+
+    .setting-card {
+      background: var(--bg-card);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+    .setting-card h3 {
+      font-size: 15px;
+      font-weight: 600;
+      margin-bottom: 6px;
+    }
+    .setting-card p {
+      font-size: 13px;
+      color: var(--text-muted);
+      margin-bottom: 16px;
+    }
+
+    select, input[type="text"], input[type="number"] {
+      width: 100%;
+      background: #12131c;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 8px;
+      color: #fff;
+      padding: 10px 14px;
+      font-size: 14px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    select:focus, input:focus {
+      border-color: var(--accent);
+    }
+
+    /* Toggle switch */
+    .toggle-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 0;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    }
+    .toggle-row:last-child {
+      border-bottom: none;
+    }
+    .switch {
+      position: relative;
+      display: inline-block;
+      width: 44px;
+      height: 24px;
+    }
+    .switch input { opacity: 0; width: 0; height: 0; }
+    .slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background-color: #334155;
+      transition: .3s;
+      border-radius: 24px;
+    }
+    .slider:before {
+      position: absolute;
+      content: "";
+      height: 18px; width: 18px;
+      left: 3px; bottom: 3px;
+      background-color: white;
+      transition: .3s;
+      border-radius: 50%;
+    }
+    input:checked + .slider {
+      background-color: var(--accent);
+    }
+    input:checked + .slider:before {
+      transform: translateX(20px);
+    }
+
+    /* Model Manager Cards */
+    .model-card {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: var(--bg-card);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 12px;
+      padding: 18px 22px;
+      margin-bottom: 16px;
+      transition: all 0.2s;
+    }
+    .model-card.active {
+      border-color: var(--accent);
+      background: rgba(99, 102, 241, 0.08);
+    }
+    .model-meta h4 {
+      font-size: 15px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .model-meta p {
+      font-size: 13px;
+      color: var(--text-muted);
+      margin-top: 4px;
+      max-width: 360px;
+    }
+    .badge {
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 9999px;
+      font-weight: 600;
+    }
+    .badge.recommended {
+      background: rgba(16, 185, 129, 0.2);
+      color: #34d399;
+      border: 1px solid rgba(16, 185, 129, 0.4);
+    }
+    .badge.installed {
+      background: rgba(99, 102, 241, 0.2);
+      color: #a5b4fc;
+    }
+
+    .btn {
+      padding: 8px 16px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      border: none;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .btn-primary {
+      background: var(--accent);
+      color: #fff;
+    }
+    .btn-primary:hover {
+      background: var(--accent-hover);
+    }
+    .btn-secondary {
+      background: rgba(255, 255, 255, 0.08);
+      color: #fff;
+    }
+    .btn-secondary:hover {
+      background: rgba(255, 255, 255, 0.16);
+    }
+
+    /* Tag Editor for Vocabulary */
+    .tags-container {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      padding: 12px;
+      background: #12131c;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 8px;
+      min-height: 80px;
+      margin-bottom: 12px;
+    }
+    .tag-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      background: rgba(99, 102, 241, 0.2);
+      border: 1px solid rgba(99, 102, 241, 0.4);
+      color: #c7d2fe;
+      border-radius: 9999px;
+      font-size: 12px;
+    }
+    .tag-remove {
+      cursor: pointer;
+      font-weight: 700;
+      color: #94a3b8;
+    }
+    .tag-remove:hover {
+      color: #fff;
+    }
+
+    /* Download Progress Bar */
+    .progress-bar-container {
+      width: 100%;
+      height: 6px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 4px;
+      overflow: hidden;
+      margin-top: 8px;
+      display: none;
+    }
+    .progress-bar-fill {
+      width: 0%;
+      height: 100%;
+      background: var(--accent);
+      transition: width 0.2s ease;
+    }
+
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      padding: 12px 20px;
+      background: #1e293b;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 8px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+      color: #fff;
+      font-size: 14px;
+      display: none;
+      z-index: 100;
     }
   </style>
 </head>
 <body>
-  <div class="pill">
-    <div class="dot" id="status-dot"></div>
-    <span class="status-text" id="status-text">VoiceKey Ready</span>
+
+  <!-- ============================================================
+       1. FLOATING OVERLAY RECORDING PILL
+       ============================================================ -->
+  <div id="overlay-container" data-tauri-drag-region>
+    <div class="pill-card" id="pill-card" data-tauri-drag-region>
+      <div class="status-dot" id="pill-dot"></div>
+      
+      <div class="pill-info" data-tauri-drag-region>
+        <span class="pill-title" id="pill-title">VoiceKey</span>
+        <span class="pill-timer" id="pill-timer">Ready</span>
+      </div>
+
+      <!-- Live audio level waveform bars -->
+      <div class="waveform" id="waveform">
+        <div class="waveform-bar"></div>
+        <div class="waveform-bar"></div>
+        <div class="waveform-bar"></div>
+        <div class="waveform-bar"></div>
+        <div class="waveform-bar"></div>
+      </div>
+
+      <div class="pill-actions">
+        <!-- Stop / Commit action -->
+        <button class="pill-btn stop" id="btn-stop" title="Stop & Paste" style="display: none;">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+            <rect x="4" y="4" width="16" height="16" rx="2" />
+          </svg>
+        </button>
+
+        <!-- Cancel recording -->
+        <button class="pill-btn" id="btn-cancel" title="Cancel Recording" style="display: none;">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+
+        <!-- Settings icon -->
+        <button class="pill-btn" id="btn-settings" title="Settings & Models">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="3"></circle>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+          </svg>
+        </button>
+      </div>
+    </div>
   </div>
+
+  <!-- ============================================================
+       2. SETTINGS & MODEL MANAGER WINDOW
+       ============================================================ -->
+  <div id="settings-container">
+    <div class="settings-layout">
+      <!-- Sidebar Navigation -->
+      <div class="settings-sidebar">
+        <div class="app-brand">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+            <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+            <line x1="12" y1="19" x2="12" y2="23"></line>
+            <line x1="8" y1="23" x2="16" y2="23"></line>
+          </svg>
+          <span>VoiceKey</span>
+        </div>
+
+        <div class="nav-item active" data-tab="models">Models</div>
+        <div class="nav-item" data-tab="audio">Audio & Input</div>
+        <div class="nav-item" data-tab="dictation">Dictation</div>
+        <div class="nav-item" data-tab="vocabulary">Vocabulary</div>
+      </div>
+
+      <!-- Content Views -->
+      <div class="settings-content">
+        <!-- TAB 1: MODEL MANAGER -->
+        <div class="tab-section active" id="tab-models">
+          <h2 class="section-title">Whisper Model Manager</h2>
+          <p class="section-desc">Manage quantized GGML models for local, offline transcription with zero cloud dependence.</p>
+
+          <div id="hardware-recommendation" class="setting-card" style="border-left: 4px solid var(--green);">
+            <h3 style="color: #34d399;">CPU Profiling Recommendation</h3>
+            <p id="recommendation-text">Checking CPU capabilities...</p>
+          </div>
+
+          <div id="models-list">
+            <!-- Dynamically populated model cards -->
+          </div>
+        </div>
+
+        <!-- TAB 2: AUDIO & INPUT -->
+        <div class="tab-section" id="tab-audio">
+          <h2 class="section-title">Audio & Microphone</h2>
+          <p class="section-desc">Configure audio input devices and hardware recording properties.</p>
+
+          <div class="setting-card">
+            <h3>Microphone Device</h3>
+            <p>Select the input audio device used for voice recording.</p>
+            <select id="audio-device-select">
+              <option value="">System Default</option>
+            </select>
+          </div>
+
+          <div class="setting-card">
+            <h3>Hotkey Dictation Mode</h3>
+            <p>Choose between single tap toggle or hold-to-talk dictation.</p>
+            <select id="hotkey-mode-select">
+              <option value="toggle">Toggle (Press once to start, press again to stop & paste)</option>
+              <option value="hold_to_talk">Hold to Talk (Record while key held down)</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- TAB 3: DICTATION & FORMATTING -->
+        <div class="tab-section" id="tab-dictation">
+          <h2 class="section-title">Dictation & Auto-Pasting</h2>
+          <p class="section-desc">Fine-tune text normalization, spoken punctuation, and clipboard behavior.</p>
+
+          <div class="setting-card">
+            <div class="toggle-row">
+              <div>
+                <h3>Spoken Punctuation Parsing</h3>
+                <p>Convert spoken words like "comma", "period", "new line" into punctuation.</p>
+              </div>
+              <label class="switch">
+                <input type="checkbox" id="check-spoken-punct" checked>
+                <span class="slider"></span>
+              </label>
+            </div>
+
+            <div class="toggle-row">
+              <div>
+                <h3>Preserve Previous Clipboard Contents</h3>
+                <p>Restore previous clipboard text after auto-pasting is completed.</p>
+              </div>
+              <label class="switch">
+                <input type="checkbox" id="check-clipboard-preserve" checked>
+                <span class="slider"></span>
+              </label>
+            </div>
+
+            <div class="toggle-row">
+              <div>
+                <h3>Launch at System Startup</h3>
+                <p>Automatically launch VoiceKey minimized in the system tray upon login.</p>
+              </div>
+              <label class="switch">
+                <input type="checkbox" id="check-autostart">
+                <span class="slider"></span>
+              </label>
+            </div>
+          </div>
+
+          <div class="setting-card">
+            <h3>Clipboard Restore Debounce Delay</h3>
+            <p>Milliseconds to wait before restoring user's previous clipboard (Default: 250ms).</p>
+            <input type="number" id="input-delay-ms" min="50" max="2000" step="25" value="250">
+          </div>
+        </div>
+
+        <!-- TAB 4: VOCABULARY -->
+        <div class="tab-section" id="tab-vocabulary">
+          <h2 class="section-title">Custom Vocabulary & Bias</h2>
+          <p class="section-desc">Condition the Whisper engine to accurately recognize domain-specific jargon and acronyms.</p>
+
+          <div class="setting-card">
+            <h3>Active Vocabulary Terms</h3>
+            <p>Technical terms conditioned into Whisper's initial decoder prompt:</p>
+            <div class="tags-container" id="vocabulary-tags"></div>
+
+            <div style="display: flex; gap: 8px; margin-top: 8px;">
+              <input type="text" id="new-tag-input" placeholder="Enter term (e.g., Kubernetes, PyTorch, GraphQL)">
+              <button class="btn btn-secondary" id="btn-add-tag">Add Term</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Footer Save Button -->
+        <div style="margin-top: 32px; display: flex; justify-content: flex-end; gap: 12px;">
+          <button class="btn btn-primary" id="btn-save-settings">Save & Apply Changes</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast">Changes saved successfully!</div>
+
+  <script>
+    // Safe Tauri invocation helper
+    const invoke = window.__TAURI__ ? window.__TAURI__.core.invoke : async () => {};
+    const listen = window.__TAURI__ ? window.__TAURI__.event.listen : () => {};
+
+    let currentSettings = {
+      audio_device: null,
+      active_model: "base.en",
+      spoken_punctuation: true,
+      hotkey_mode: "toggle",
+      clipboard_preserve: true,
+      clipboard_delay_ms: 250,
+      custom_vocabulary: ["VoiceKey", "Rust", "Tauri", "API", "Kubernetes"],
+      launch_at_startup: false
+    };
+
+    let recordingStartTime = null;
+    let timerInterval = null;
+
+    // View router based on URL hash
+    function updateRoute() {
+      const isSettings = window.location.hash === "#settings";
+      document.getElementById("overlay-container").style.display = isSettings ? "none" : "flex";
+      document.getElementById("settings-container").style.display = isSettings ? "block" : "none";
+      if (isSettings) {
+        loadSettingsFromBackend();
+        loadModelsList();
+      }
+    }
+    window.addEventListener("hashchange", updateRoute);
+    updateRoute();
+
+    // ============================================================
+    // Overlay Pill Logic
+    // ============================================================
+    const pillDot = document.getElementById("pill-dot");
+    const pillTitle = document.getElementById("pill-title");
+    const pillTimer = document.getElementById("pill-timer");
+    const waveform = document.getElementById("waveform");
+    const btnStop = document.getElementById("btn-stop");
+    const btnCancel = document.getElementById("btn-cancel");
+    const btnSettings = document.getElementById("btn-settings");
+
+    btnSettings.addEventListener("click", () => {
+      invoke("open_settings_window");
+    });
+
+    btnStop.addEventListener("click", () => {
+      invoke("toggle_dictation");
+    });
+
+    btnCancel.addEventListener("click", () => {
+      invoke("cancel_dictation");
+    });
+
+    // Real-time state polling
+    async function pollState() {
+      try {
+        const status = await invoke("get_engine_status");
+        if (status) {
+          updatePillUI(status.state, status.model);
+        }
+      } catch (e) {}
+    }
+    setInterval(pollState, 300);
+
+    function updatePillUI(state, model) {
+      pillDot.className = "status-dot " + (state === "recording" ? "recording" : state === "transcribing" || state === "pasting" ? "transcribing" : "");
+      
+      if (state === "recording") {
+        pillTitle.innerText = "Listening...";
+        waveform.className = "waveform active";
+        btnStop.style.display = "flex";
+        btnCancel.style.display = "flex";
+
+        if (!recordingStartTime) {
+          recordingStartTime = Date.now();
+          timerInterval = setInterval(() => {
+            const elapsed = Math.floor((Date.now() - recordingStartTime) / 1000);
+            const m = String(Math.floor(elapsed / 60)).padStart(2, "0");
+            const s = String(elapsed % 60).padStart(2, "0");
+            pillTimer.innerText = `${m}:${s}`;
+          }, 500);
+        }
+      } else if (state === "transcribing") {
+        pillTitle.innerText = "Transcribing...";
+        pillTimer.innerText = model;
+        waveform.className = "waveform";
+        btnStop.style.display = "none";
+        btnCancel.style.display = "none";
+        clearInterval(timerInterval);
+        recordingStartTime = null;
+      } else if (state === "pasting") {
+        pillTitle.innerText = "Pasting...";
+        pillTimer.innerText = "Active Window";
+        waveform.className = "waveform";
+        btnStop.style.display = "none";
+        btnCancel.style.display = "none";
+        clearInterval(timerInterval);
+        recordingStartTime = null;
+      } else {
+        pillTitle.innerText = "VoiceKey";
+        pillTimer.innerText = "Ready";
+        waveform.className = "waveform";
+        btnStop.style.display = "none";
+        btnCancel.style.display = "none";
+        clearInterval(timerInterval);
+        recordingStartTime = null;
+      }
+    }
+
+    // ============================================================
+    // Settings Tabs Navigation
+    // ============================================================
+    document.querySelectorAll(".nav-item").forEach(item => {
+      item.addEventListener("click", () => {
+        document.querySelectorAll(".nav-item").forEach(n => n.classList.remove("active"));
+        document.querySelectorAll(".tab-section").forEach(s => s.classList.remove("active"));
+        item.classList.add("active");
+        const tabId = item.getAttribute("data-tab");
+        document.getElementById(`tab-${tabId}`).classList.add("active");
+      });
+    });
+
+    // ============================================================
+    // Settings & Model Manager Data Loading
+    // ============================================================
+    async function loadSettingsFromBackend() {
+      try {
+        const settings = await invoke("get_settings");
+        if (settings) {
+          currentSettings = settings;
+          document.getElementById("check-spoken-punct").checked = settings.spoken_punctuation;
+          document.getElementById("check-clipboard-preserve").checked = settings.clipboard_preserve;
+          document.getElementById("check-autostart").checked = settings.launch_at_startup;
+          document.getElementById("input-delay-ms").value = settings.clipboard_delay_ms;
+          document.getElementById("hotkey-mode-select").value = settings.hotkey_mode;
+          renderVocabularyTags();
+        }
+
+        const devices = await invoke("list_audio_devices");
+        const devSelect = document.getElementById("audio-device-select");
+        devSelect.innerHTML = '<option value="">System Default</option>';
+        if (devices) {
+          devices.forEach(d => {
+            const opt = document.createElement("option");
+            opt.value = d.name;
+            opt.innerText = `${d.name} (${d.channels} ch, ${d.sample_rate} Hz)${d.is_default ? " [Default]" : ""}`;
+            if (currentSettings.audio_device === d.name) opt.selected = true;
+            devSelect.appendChild(opt);
+          });
+        }
+      } catch (e) {
+        console.error("Error loading settings:", e);
+      }
+    }
+
+    function renderVocabularyTags() {
+      const container = document.getElementById("vocabulary-tags");
+      container.innerHTML = "";
+      currentSettings.custom_vocabulary.forEach((term, idx) => {
+        const pill = document.createElement("div");
+        pill.className = "tag-pill";
+        pill.innerHTML = `<span>${term}</span><span class="tag-remove" data-idx="${idx}">×</span>`;
+        container.appendChild(pill);
+      });
+
+      document.querySelectorAll(".tag-remove").forEach(btn => {
+        btn.addEventListener("click", (e) => {
+          const idx = parseInt(e.target.getAttribute("data-idx"));
+          currentSettings.custom_vocabulary.splice(idx, 1);
+          renderVocabularyTags();
+        });
+      });
+    }
+
+    document.getElementById("btn-add-tag").addEventListener("click", () => {
+      const input = document.getElementById("new-tag-input");
+      const term = input.value.trim();
+      if (term && !currentSettings.custom_vocabulary.includes(term)) {
+        currentSettings.custom_vocabulary.push(term);
+        renderVocabularyTags();
+        input.value = "";
+      }
+    });
+
+    async function loadModelsList() {
+      try {
+        const rec = await invoke("get_recommended_model");
+        if (rec) {
+          document.getElementById("recommendation-text").innerText = `${rec.reason} (CPUs: ${rec.cpu_threads} threads${rec.has_avx2 ? ', AVX2 SIMD' : ''})`;
+        }
+
+        const models = await invoke("get_models_info");
+        const listContainer = document.getElementById("models-list");
+        listContainer.innerHTML = "";
+
+        if (models) {
+          models.forEach(m => {
+            const card = document.createElement("div");
+            card.className = `model-card ${m.is_active ? 'active' : ''}`;
+            card.id = `model-card-${m.id.replace('.', '-')}`;
+
+            card.innerHTML = `
+              <div class="model-meta">
+                <h4>
+                  ${m.name}
+                  ${m.is_recommended ? '<span class="badge recommended">Recommended</span>' : ''}
+                  ${m.is_downloaded ? '<span class="badge installed">Installed</span>' : ''}
+                </h4>
+                <p>${m.description} (${m.size_mb.toFixed(1)} MB)</p>
+                <div class="progress-bar-container" id="progress-${m.id.replace('.', '-')}">
+                  <div class="progress-bar-fill" id="fill-${m.id.replace('.', '-')}"></div>
+                </div>
+              </div>
+              <div style="display: flex; gap: 8px; align-items: center;">
+                ${m.is_downloaded ? `
+                  <button class="btn btn-primary btn-activate" data-id="${m.id}" ${m.is_active ? 'disabled' : ''}>
+                    ${m.is_active ? 'Active' : 'Activate'}
+                  </button>
+                ` : `
+                  <button class="btn btn-secondary btn-download" data-id="${m.id}">Download</button>
+                `}
+              </div>
+            `;
+            listContainer.appendChild(card);
+          });
+
+          // Wire Download buttons
+          document.querySelectorAll(".btn-download").forEach(btn => {
+            btn.addEventListener("click", async (e) => {
+              const modelId = e.target.getAttribute("data-id");
+              e.target.disabled = true;
+              e.target.innerText = "Downloading...";
+              const progressEl = document.getElementById(`progress-${modelId.replace('.', '-')}`);
+              if (progressEl) progressEl.style.display = "block";
+
+              try {
+                await invoke("download_model", { modelId });
+                showToast(`Downloaded & verified ${modelId} successfully!`);
+                loadModelsList();
+              } catch (err) {
+                alert(`Download failed: ${err}`);
+                e.target.disabled = false;
+                e.target.innerText = "Retry";
+              }
+            });
+          });
+
+          // Wire Activate buttons
+          document.querySelectorAll(".btn-activate").forEach(btn => {
+            btn.addEventListener("click", async (e) => {
+              const modelId = e.target.getAttribute("data-id");
+              currentSettings.active_model = modelId;
+              await invoke("save_settings_cmd", { settings: currentSettings });
+              showToast(`Switched active Whisper model to ${modelId}`);
+              loadModelsList();
+            });
+          });
+        }
+      } catch (e) {
+        console.error("Error loading models:", e);
+      }
+    }
+
+    // Listen for model download progress events
+    listen("model_download_progress", (event) => {
+      const data = event.payload;
+      const fillEl = document.getElementById(`fill-${data.model_id.replace('.', '-')}`);
+      if (fillEl) {
+        fillEl.style.width = `${data.percentage}%`;
+      }
+    });
+
+    // Save and Apply settings button
+    document.getElementById("btn-save-settings").addEventListener("click", async () => {
+      currentSettings.audio_device = document.getElementById("audio-device-select").value || null;
+      currentSettings.hotkey_mode = document.getElementById("hotkey-mode-select").value;
+      currentSettings.spoken_punctuation = document.getElementById("check-spoken-punct").checked;
+      currentSettings.clipboard_preserve = document.getElementById("check-clipboard-preserve").checked;
+      currentSettings.launch_at_startup = document.getElementById("check-autostart").checked;
+      currentSettings.clipboard_delay_ms = parseInt(document.getElementById("input-delay-ms").value) || 250;
+
+      try {
+        await invoke("save_settings_cmd", { settings: currentSettings });
+        showToast("Settings saved and applied successfully!");
+      } catch (e) {
+        alert("Failed to save settings: " + e);
+      }
+    });
+
+    function showToast(msg) {
+      const toast = document.getElementById("toast");
+      toast.innerText = msg;
+      toast.style.display = "block";
+      setTimeout(() => { toast.style.display = "none"; }, 3000);
+    }
+  </script>
 </body>
 </html>

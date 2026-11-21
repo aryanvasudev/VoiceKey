@@ -15,14 +15,26 @@
       {
         "title": "VoiceKey Overlay",
         "label": "overlay",
-        "width": 320,
-        "height": 80,
+        "url": "index.html#overlay",
+        "width": 340,
+        "height": 90,
         "resizable": false,
-        "visible": false,
+        "visible": true,
         "transparent": true,
         "decorations": false,
         "alwaysOnTop": true,
         "skipTaskbar": true
+      },
+      {
+        "title": "VoiceKey Settings",
+        "label": "settings",
+        "url": "index.html#settings",
+        "width": 720,
+        "height": 600,
+        "resizable": false,
+        "visible": false,
+        "transparent": false,
+        "decorations": true
       }
     ]
   },

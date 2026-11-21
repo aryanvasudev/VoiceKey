@@ -76,6 +76,7 @@ pub fn setup_tray(app: &AppHandle, engine: EngineHandle) -> Result<Arc<TrayContr
     let autostart_item = CheckMenuItem::with_id(app, "autostart", "Launch at Startup", true, is_autostart_enabled, None::<&str>)?;
 
     let overlay_item = MenuItem::with_id(app, "overlay", "Show Floating Overlay", true, None::<&str>)?;
+    let settings_item = MenuItem::with_id(app, "settings", "Settings & Models...", true, None::<&str>)?;
     let quit_item = MenuItem::with_id(app, "quit", "Quit VoiceKey", true, None::<&str>)?;
 
     let separator1 = PredefinedMenuItem::separator(app)?;
@@ -95,6 +96,7 @@ pub fn setup_tray(app: &AppHandle, engine: EngineHandle) -> Result<Arc<TrayContr
             &separator3,
             &autostart_item,
             &overlay_item,
+            &settings_item,
             &separator4,
             &quit_item,
         ],
@@ -146,6 +148,12 @@ pub fn setup_tray(app: &AppHandle, engine: EngineHandle) -> Result<Arc<TrayContr
                     }
                     "overlay" => {
                         if let Some(win) = app.get_webview_window("overlay") {
+                            let _ = win.show();
+                            let _ = win.set_focus();
+                        }
+                    }
+                    "settings" => {
+                        if let Some(win) = app.get_webview_window("settings") {
                             let _ = win.show();
                             let _ = win.set_focus();
                         }

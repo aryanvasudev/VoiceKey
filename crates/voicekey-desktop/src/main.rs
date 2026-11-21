@@ -1,6 +1,9 @@
 // Prevents additional console window on Windows in release
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod commands;
+mod models;
+mod settings;
 mod state;
 mod tray;
 
@@ -64,8 +67,22 @@ fn main() {
 
     let engine_for_single_instance = engine.clone();
     let engine_for_setup = engine.clone();
+    let engine_for_state = engine.clone();
 
     tauri::Builder::default()
+        .manage(engine_for_state)
+        .invoke_handler(tauri::generate_handler![
+            crate::commands::get_engine_status,
+            crate::commands::toggle_dictation,
+            crate::commands::cancel_dictation,
+            crate::commands::list_audio_devices,
+            crate::commands::get_models_info,
+            crate::commands::download_model,
+            crate::commands::get_recommended_model,
+            crate::commands::get_settings,
+            crate::commands::save_settings_cmd,
+            crate::commands::open_settings_window,
+        ])
         .plugin(tauri_plugin_single_instance::init(move |app, _argv, _cwd| {
             info!("Second instance detected! Focusing application and triggering toggle.");
             let engine = engine_for_single_instance.clone();

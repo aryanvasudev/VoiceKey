@@ -143,17 +143,17 @@ A review of naive cross-platform assumptions revealed several critical edge case
 - [x] Autostart integration via `tauri-plugin-autostart` (Windows Registry & Linux `.desktop` / systemd).
 
 ### Phase 5: Floating Overlay Pill, Settings UI & Model Manager
-- [ ] Lightweight web frontend (Svelte or React + Tailwind CSS).
-- [ ] **Floating Recording Pill:**
+- [x] Lightweight web frontend (Svelte or React + Tailwind CSS).
+- [x] **Floating Recording Pill:**
   - Frameless, transparent, draggable window.
   - Click-through capable when inactive.
   - Real-time audio waveform animation while recording.
-- [ ] **Settings Window:**
+- [x] **Settings Window:**
   - Audio input device selector.
   - Hotkey configuration and mode (Toggle vs Hold-to-Talk).
   - Custom vocabulary dictionary for technical jargon.
   - Paste options (Instant Paste, Clipboard Only, Preserve Previous Clipboard).
-- [ ] **Model Manager:**
+- [x] **Model Manager:**
   - In-app downloader with progress indicators and SHA-256 validation.
   - Automatic hardware benchmark to recommend optimal model.
 
