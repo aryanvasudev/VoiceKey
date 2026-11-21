@@ -1,6 +1,6 @@
-//! Cross-platform clipboard manager with 250ms debounced restoration queue.
-
+#[cfg(not(target_os = "android"))]
 use arboard::Clipboard;
+#[cfg(not(target_os = "android"))]
 use std::sync::Mutex;
 use std::thread;
 use std::time::Duration;
@@ -9,6 +9,7 @@ use crate::error::CoreError;
 use crate::input::injector::KeyInjector;
 use crate::input::terminal::is_active_window_terminal;
 
+#[cfg(not(target_os = "android"))]
 static PERSISTENT_CLIPBOARD: Mutex<Option<Clipboard>> = Mutex::new(None);
 
 /// Clipboard manager handling copy, paste, and atomic state restoration.
@@ -17,79 +18,100 @@ pub struct ClipboardManager;
 impl ClipboardManager {
     /// Read the current plain text from the system clipboard.
     pub fn get_text() -> Result<String, CoreError> {
-        // Try persistent arboard instance first
-        if let Ok(mut guard) = PERSISTENT_CLIPBOARD.lock() {
-            if guard.is_none() {
-                *guard = Clipboard::new().ok();
-            }
-            if let Some(ref mut cb) = *guard {
-                if let Ok(text) = cb.get_text() {
-                    return Ok(text);
-                }
-            }
+        #[cfg(target_os = "android")]
+        {
+            Err(CoreError::Audio(
+                "Android clipboard is managed by InputMethodService / Android ClipboardManager".into(),
+            ))
         }
 
-        // Wayland fallback via wl-paste
-        #[cfg(target_os = "linux")]
+        #[cfg(not(target_os = "android"))]
         {
-            if std::env::var_os("WAYLAND_DISPLAY").is_some() {
-                if let Ok(output) = std::process::Command::new("wl-paste")
-                    .args(["--no-newline"])
-                    .output()
-                {
-                    if output.status.success() {
-                        return Ok(String::from_utf8_lossy(&output.stdout).to_string());
+            // Try persistent arboard instance first
+            if let Ok(mut guard) = PERSISTENT_CLIPBOARD.lock() {
+                if guard.is_none() {
+                    *guard = Clipboard::new().ok();
+                }
+                if let Some(ref mut cb) = *guard {
+                    if let Ok(text) = cb.get_text() {
+                        return Ok(text);
                     }
                 }
             }
-        }
 
-        Err(CoreError::Audio("Failed to read system clipboard".into()))
-    }
-
-    /// Set the plain text of the system clipboard.
-    pub fn set_text(text: &str) -> Result<(), CoreError> {
-        let mut arboard_ok = false;
-        if let Ok(mut guard) = PERSISTENT_CLIPBOARD.lock() {
-            if guard.is_none() {
-                *guard = Clipboard::new().ok();
-            }
-            if let Some(ref mut cb) = *guard {
-                if cb.set_text(text).is_ok() {
-                    arboard_ok = true;
-                }
-            }
-        }
-
-        // On Linux Wayland, also use wl-copy to guarantee compositor persistence
-        #[cfg(target_os = "linux")]
-        {
-            if std::env::var_os("WAYLAND_DISPLAY").is_some() {
-                use std::io::Write;
-                if let Ok(mut child) = std::process::Command::new("wl-copy")
-                    .stdin(std::process::Stdio::piped())
-                    .stdout(std::process::Stdio::null())
-                    .stderr(std::process::Stdio::null())
-                    .spawn()
-                {
-                    if let Some(mut stdin) = child.stdin.take() {
-                        let _ = stdin.write_all(text.as_bytes());
-                    }
-                    if let Ok(status) = child.wait() {
-                        if status.success() {
-                            return Ok(());
+            // Wayland fallback via wl-paste
+            #[cfg(target_os = "linux")]
+            {
+                if std::env::var_os("WAYLAND_DISPLAY").is_some() {
+                    if let Ok(output) = std::process::Command::new("wl-paste")
+                        .args(["--no-newline"])
+                        .output()
+                    {
+                        if output.status.success() {
+                            return Ok(String::from_utf8_lossy(&output.stdout).to_string());
                         }
                     }
                 }
             }
+
+            Err(CoreError::Audio("Failed to read system clipboard".into()))
+        }
+    }
+
+    /// Set the plain text of the system clipboard.
+    pub fn set_text(text: &str) -> Result<(), CoreError> {
+        #[cfg(target_os = "android")]
+        {
+            let _ = text;
+            return Err(CoreError::Audio(
+                "Android clipboard is managed by InputMethodService / Android ClipboardManager".into(),
+            ));
         }
 
-        if arboard_ok {
-            Ok(())
-        } else {
-            Err(CoreError::Audio(
-                "Failed to write to system clipboard".into(),
-            ))
+        #[cfg(not(target_os = "android"))]
+        {
+            let mut arboard_ok = false;
+            if let Ok(mut guard) = PERSISTENT_CLIPBOARD.lock() {
+                if guard.is_none() {
+                    *guard = Clipboard::new().ok();
+                }
+                if let Some(ref mut cb) = *guard {
+                    if cb.set_text(text).is_ok() {
+                        arboard_ok = true;
+                    }
+                }
+            }
+
+            // On Linux Wayland, also use wl-copy to guarantee compositor persistence
+            #[cfg(target_os = "linux")]
+            {
+                if std::env::var_os("WAYLAND_DISPLAY").is_some() {
+                    use std::io::Write;
+                    if let Ok(mut child) = std::process::Command::new("wl-copy")
+                        .stdin(std::process::Stdio::piped())
+                        .stdout(std::process::Stdio::null())
+                        .stderr(std::process::Stdio::null())
+                        .spawn()
+                    {
+                        if let Some(mut stdin) = child.stdin.take() {
+                            let _ = stdin.write_all(text.as_bytes());
+                        }
+                        if let Ok(status) = child.wait() {
+                            if status.success() {
+                                return Ok(());
+                            }
+                        }
+                    }
+                }
+            }
+
+            if arboard_ok {
+                Ok(())
+            } else {
+                Err(CoreError::Audio(
+                    "Failed to write to system clipboard".into(),
+                ))
+            }
         }
     }
 
