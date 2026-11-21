@@ -7,8 +7,8 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::thread;
 
-use serde::{Deserialize, Serialize};
 use crate::error::CoreError;
+use serde::{Deserialize, Serialize};
 
 #[cfg(unix)]
 use std::os::unix::net::{UnixListener, UnixStream};
@@ -87,7 +87,9 @@ pub fn send_ipc_command_to<P: AsRef<std::path::Path>>(
 
     #[cfg(not(unix))]
     {
-        Err(CoreError::Audio("IPC not supported on this platform yet".into()))
+        Err(CoreError::Audio(
+            "IPC not supported on this platform yet".into(),
+        ))
     }
 }
 
@@ -186,7 +188,8 @@ mod tests {
 
     #[test]
     fn test_ipc_roundtrip() {
-        let test_sock = std::env::temp_dir().join(format!("voicekey_ipc_test_{}.sock", std::process::id()));
+        let test_sock =
+            std::env::temp_dir().join(format!("voicekey_ipc_test_{}.sock", std::process::id()));
         let server = IpcServer::bind_at(&test_sock, |cmd| match cmd {
             IpcCommand::Toggle => IpcResponse::Ok,
             IpcCommand::Status => IpcResponse::State("idle".into()),

@@ -46,7 +46,9 @@ impl AudioResampler {
             self.chunk_size,
             1, // mono
         )
-        .map_err(|e| CoreError::Resample(format!("Failed to initialize rubato FFT resampler: {e}")))?;
+        .map_err(|e| {
+            CoreError::Resample(format!("Failed to initialize rubato FFT resampler: {e}"))
+        })?;
 
         let mut output = Vec::new();
         let chunk_in_len = resampler.input_frames_next();

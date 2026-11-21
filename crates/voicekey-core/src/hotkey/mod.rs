@@ -1,8 +1,8 @@
 //! 3-Tier Global Hotkey Architecture supporting Wayland, Windows, and universal IPC fallback.
 
+use serde::{Deserialize, Serialize};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use serde::{Deserialize, Serialize};
 
 use crate::error::CoreError;
 use crate::ipc::{IpcCommand, IpcResponse, IpcServer};
@@ -57,7 +57,11 @@ impl HotkeyRouter {
     }
 
     /// Start listening with an optional custom socket path.
-    pub fn start_with_socket_path<P, F>(&mut self, socket_path: Option<P>, callback: F) -> Result<(), CoreError>
+    pub fn start_with_socket_path<P, F>(
+        &mut self,
+        socket_path: Option<P>,
+        callback: F,
+    ) -> Result<(), CoreError>
     where
         P: AsRef<std::path::Path>,
         F: Fn(HotkeyEvent) + Send + Sync + 'static,
@@ -71,26 +75,24 @@ impl HotkeyRouter {
 
         // Tier 2: Universal Local IPC Server
         let cb_ipc = Arc::clone(&cb);
-        let handler = move |cmd| {
-            match cmd {
-                IpcCommand::Toggle => {
-                    cb_ipc(HotkeyEvent::Toggle);
-                    IpcResponse::Ok
-                }
-                IpcCommand::Start => {
-                    cb_ipc(HotkeyEvent::Start);
-                    IpcResponse::Ok
-                }
-                IpcCommand::Stop => {
-                    cb_ipc(HotkeyEvent::Stop);
-                    IpcResponse::Ok
-                }
-                IpcCommand::Cancel => {
-                    cb_ipc(HotkeyEvent::Cancel);
-                    IpcResponse::Ok
-                }
-                IpcCommand::Status => IpcResponse::State("listening".into()),
+        let handler = move |cmd| match cmd {
+            IpcCommand::Toggle => {
+                cb_ipc(HotkeyEvent::Toggle);
+                IpcResponse::Ok
             }
+            IpcCommand::Start => {
+                cb_ipc(HotkeyEvent::Start);
+                IpcResponse::Ok
+            }
+            IpcCommand::Stop => {
+                cb_ipc(HotkeyEvent::Stop);
+                IpcResponse::Ok
+            }
+            IpcCommand::Cancel => {
+                cb_ipc(HotkeyEvent::Cancel);
+                IpcResponse::Ok
+            }
+            IpcCommand::Status => IpcResponse::State("listening".into()),
         };
 
         let server = match socket_path {
@@ -130,12 +132,13 @@ impl Drop for HotkeyRouter {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::atomic::AtomicUsize;
     use crate::ipc::send_ipc_command_to;
+    use std::sync::atomic::AtomicUsize;
 
     #[test]
     fn test_hotkey_router_tier2_ipc_trigger() {
-        let test_sock = std::env::temp_dir().join(format!("voicekey_hotkey_test_{}.sock", std::process::id()));
+        let test_sock =
+            std::env::temp_dir().join(format!("voicekey_hotkey_test_{}.sock", std::process::id()));
         let mut router = HotkeyRouter::new(HotkeyMode::Toggle);
         let counter = Arc::new(AtomicUsize::new(0));
 

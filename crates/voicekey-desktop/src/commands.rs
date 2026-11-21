@@ -4,13 +4,13 @@ use tauri::{AppHandle, Manager, State};
 use tauri_plugin_autostart::ManagerExt;
 use tracing::info;
 
-use voicekey_core::audio::AudioCaptureManager;
 use crate::models::{
     check_model_on_disk, download_model_with_progress, get_available_presets, recommend_model,
     ModelInfoDto, RecommendedModelDto,
 };
 use crate::settings::{load_settings, save_settings as persist_settings, SettingsPayload};
 use crate::state::{EngineHandle, EngineStatus};
+use voicekey_core::audio::AudioCaptureManager;
 
 /// DTO for audio input devices.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -63,7 +63,10 @@ pub fn list_audio_devices() -> Result<Vec<AudioDeviceDto>, String> {
 pub async fn get_models_info(engine: State<'_, EngineHandle>) -> Result<Vec<ModelInfoDto>, String> {
     let presets = get_available_presets();
     let status = engine.get_status().await;
-    let active_model = status.as_ref().map(|s| s.model.as_str()).unwrap_or("base.en");
+    let active_model = status
+        .as_ref()
+        .map(|s| s.model.as_str())
+        .unwrap_or("base.en");
     let rec = recommend_model();
 
     let mut result = Vec::new();

@@ -16,9 +16,7 @@ pub fn normalize_text(text: &str) -> String {
     }
 
     // Clean whitespace around newlines
-    let mut cleaned = WS_AROUND_NEWLINES
-        .replace_all(trimmed, "\n")
-        .into_owned();
+    let mut cleaned = WS_AROUND_NEWLINES.replace_all(trimmed, "\n").into_owned();
 
     // Collapse multiple inline spaces (preserve newlines)
     cleaned = INLINE_SPACES.replace_all(&cleaned, " ").into_owned();

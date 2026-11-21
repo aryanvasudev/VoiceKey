@@ -45,11 +45,39 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "category": "Utility",
+    "shortDescription": "VoiceKey Cross-Platform Voice Dictation & Auto-Paste Engine",
+    "longDescription": "VoiceKey is a privacy-first, blazing fast offline voice dictation tool powered by local GGML Whisper and cross-platform hardware keystroke injection.",
+    "copyright": "Copyright © 2026 Aryan",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
       "icons/128x128@2x.png",
       "icons/icon.png"
-    ]
+    ],
+    "linux": {
+      "deb": {
+        "depends": ["libasound2", "libwebkit2gtk-4.1-0 | libwebkit2gtk-4.0-37", "libayatana-appindicator3-1"],
+        "section": "utils"
+      },
+      "rpm": {
+        "depends": ["alsa-lib", "webkit2gtk4.1", "libayatana-appindicator-gtk3"]
+      },
+      "appimage": {
+        "bundleMediaFramework": false
+      }
+    },
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser",
+        "displayLanguageSelector": false
+      },
+      "wix": {
+        "language": "en-US"
+      },
+      "webviewInstallMode": {
+        "type": "downloadBootstrapper"
+      }
+    }
   }
 }

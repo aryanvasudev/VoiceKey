@@ -32,8 +32,16 @@ impl TrayController {
     pub fn update_state(&self, state: EngineState) {
         let (icon_bytes, label, toggle_label) = match state {
             EngineState::Idle => (ICON_IDLE_BYTES, "VoiceKey: Ready", "Start Recording"),
-            EngineState::Recording => (ICON_RECORDING_BYTES, "VoiceKey: Recording...", "Stop & Paste"),
-            EngineState::Transcribing => (ICON_PROCESSING_BYTES, "VoiceKey: Transcribing...", "Transcribing..."),
+            EngineState::Recording => (
+                ICON_RECORDING_BYTES,
+                "VoiceKey: Recording...",
+                "Stop & Paste",
+            ),
+            EngineState::Transcribing => (
+                ICON_PROCESSING_BYTES,
+                "VoiceKey: Transcribing...",
+                "Transcribing...",
+            ),
             EngineState::Pasting => (ICON_PROCESSING_BYTES, "VoiceKey: Pasting...", "Pasting..."),
         };
 
@@ -60,23 +68,62 @@ impl TrayController {
 }
 
 /// Setup the native system tray icon and menu structure.
-pub fn setup_tray(app: &AppHandle, engine: EngineHandle) -> Result<Arc<TrayController>, tauri::Error> {
+pub fn setup_tray(
+    app: &AppHandle,
+    engine: EngineHandle,
+) -> Result<Arc<TrayController>, tauri::Error> {
     let status_item = MenuItem::with_id(app, "status", "VoiceKey: Ready", false, None::<&str>)?;
     let toggle_item = MenuItem::with_id(app, "toggle", "Toggle Dictation", true, None::<&str>)?;
-    let mute_item = CheckMenuItem::with_id(app, "mute", "Mute Microphone", true, false, None::<&str>)?;
+    let mute_item =
+        CheckMenuItem::with_id(app, "mute", "Mute Microphone", true, false, None::<&str>)?;
 
     // Whisper Model Submenu
-    let model_tiny_item = CheckMenuItem::with_id(app, "model_tiny", "tiny.en (Fastest)", true, false, None::<&str>)?;
-    let model_base_item = CheckMenuItem::with_id(app, "model_base", "base.en (Default)", true, true, None::<&str>)?;
-    let model_small_item = CheckMenuItem::with_id(app, "model_small", "small.en (Accurate)", true, false, None::<&str>)?;
-    let model_submenu = Submenu::with_items(app, "Whisper Model", true, &[&model_tiny_item, &model_base_item, &model_small_item])?;
+    let model_tiny_item = CheckMenuItem::with_id(
+        app,
+        "model_tiny",
+        "tiny.en (Fastest)",
+        true,
+        false,
+        None::<&str>,
+    )?;
+    let model_base_item = CheckMenuItem::with_id(
+        app,
+        "model_base",
+        "base.en (Default)",
+        true,
+        true,
+        None::<&str>,
+    )?;
+    let model_small_item = CheckMenuItem::with_id(
+        app,
+        "model_small",
+        "small.en (Accurate)",
+        true,
+        false,
+        None::<&str>,
+    )?;
+    let model_submenu = Submenu::with_items(
+        app,
+        "Whisper Model",
+        true,
+        &[&model_tiny_item, &model_base_item, &model_small_item],
+    )?;
 
     // Autostart integration
     let is_autostart_enabled = app.autolaunch().is_enabled().unwrap_or(false);
-    let autostart_item = CheckMenuItem::with_id(app, "autostart", "Launch at Startup", true, is_autostart_enabled, None::<&str>)?;
+    let autostart_item = CheckMenuItem::with_id(
+        app,
+        "autostart",
+        "Launch at Startup",
+        true,
+        is_autostart_enabled,
+        None::<&str>,
+    )?;
 
-    let overlay_item = MenuItem::with_id(app, "overlay", "Show Floating Overlay", true, None::<&str>)?;
-    let settings_item = MenuItem::with_id(app, "settings", "Settings & Models...", true, None::<&str>)?;
+    let overlay_item =
+        MenuItem::with_id(app, "overlay", "Show Floating Overlay", true, None::<&str>)?;
+    let settings_item =
+        MenuItem::with_id(app, "settings", "Settings & Models...", true, None::<&str>)?;
     let quit_item = MenuItem::with_id(app, "quit", "Quit VoiceKey", true, None::<&str>)?;
 
     let separator1 = PredefinedMenuItem::separator(app)?;

@@ -19,9 +19,7 @@ pub use error::CoreError;
 pub use hotkey::{HotkeyEvent, HotkeyMode, HotkeyRouter};
 pub use input::{is_active_window_terminal, ClipboardManager, KeyInjector, KNOWN_TERMINAL_CLASSES};
 pub use ipc::{get_socket_path, send_ipc_command, IpcCommand, IpcResponse, IpcServer};
-pub use text::{
-    apply_spoken_punctuation, normalize_text, process_transcription, VocabularyPrompt,
-};
+pub use text::{apply_spoken_punctuation, normalize_text, process_transcription, VocabularyPrompt};
 pub use vad::{EnergyVad, VadConfig};
 
 /// Result type alias for VoiceKey core operations.

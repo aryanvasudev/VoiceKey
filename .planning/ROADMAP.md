@@ -52,7 +52,7 @@ Detailed technical specifications and loophole mitigations are documented in [.p
   - Lightweight transparent, draggable floating recording pill with real-time waveform animation.
   - Settings window for device selection, hotkey customization, and custom vocabulary dictionary.
   - Model Manager for background download and SHA-256 verification of quantized GGML models.
-- [ ] **Phase 12: Desktop Packaging & Multi-Platform CI/CD**
+- [x] **Phase 12: Desktop Packaging & Multi-Platform CI/CD**
   - Windows: Self-contained `.msi` and NSIS `.exe` installers with WebView2 verification.
   - Linux: Standalone AppImage, `.deb`, `.rpm`, and udev rule installer.
   - Multi-platform automated GitHub Actions CI/CD matrix.

@@ -71,7 +71,9 @@ pub fn is_active_window_terminal() -> bool {
             .output()
         {
             if output.status.success() {
-                let class_name = String::from_utf8_lossy(&output.stdout).trim().to_lowercase();
+                let class_name = String::from_utf8_lossy(&output.stdout)
+                    .trim()
+                    .to_lowercase();
                 for &term in KNOWN_TERMINAL_CLASSES {
                     if class_name.contains(term) {
                         return true;
@@ -84,7 +86,9 @@ pub fn is_active_window_terminal() -> bool {
     #[cfg(target_os = "windows")]
     {
         // On Windows, query active foreground window process
-        use windows_sys::Win32::UI::WindowsAndMessaging::{GetForegroundWindow, GetWindowThreadProcessId};
+        use windows_sys::Win32::UI::WindowsAndMessaging::{
+            GetForegroundWindow, GetWindowThreadProcessId,
+        };
         unsafe {
             let hwnd = GetForegroundWindow();
             if hwnd != 0 {

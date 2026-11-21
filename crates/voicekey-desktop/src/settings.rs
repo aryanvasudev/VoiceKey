@@ -1,8 +1,8 @@
 //! Desktop and engine configuration settings persistence.
 
+use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
-use serde::{Deserialize, Serialize};
 use tracing::info;
 
 /// Settings payload passed between frontend and backend.

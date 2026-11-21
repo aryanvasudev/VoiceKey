@@ -1,8 +1,8 @@
 //! Cross-platform hardware keystroke injection for auto-pasting.
 
+use crate::error::CoreError;
 use std::thread::sleep;
 use std::time::Duration;
-use crate::error::CoreError;
 
 #[cfg(target_os = "linux")]
 use evdev::uinput::VirtualDeviceBuilder;
@@ -30,7 +30,9 @@ impl KeyInjector {
 
         #[cfg(not(any(target_os = "linux", target_os = "windows")))]
         {
-            Err(CoreError::Audio("Unsupported OS for keystroke injection".into()))
+            Err(CoreError::Audio(
+                "Unsupported OS for keystroke injection".into(),
+            ))
         }
     }
 
@@ -45,7 +47,9 @@ impl KeyInjector {
         let builder = match VirtualDeviceBuilder::new() {
             Ok(b) => b,
             Err(e) => {
-                tracing::warn!("Failed to open /dev/uinput ({e}), falling back to external tool...");
+                tracing::warn!(
+                    "Failed to open /dev/uinput ({e}), falling back to external tool..."
+                );
                 return Self::inject_linux_fallback(is_terminal);
             }
         };
@@ -57,7 +61,9 @@ impl KeyInjector {
         {
             Ok(dev) => dev,
             Err(e) => {
-                tracing::warn!("Failed to build uinput device ({e}), falling back to external tool...");
+                tracing::warn!(
+                    "Failed to build uinput device ({e}), falling back to external tool..."
+                );
                 return Self::inject_linux_fallback(is_terminal);
             }
         };
@@ -100,7 +106,9 @@ impl KeyInjector {
         if std::env::var_os("WAYLAND_DISPLAY").is_some() {
             let mut cmd = std::process::Command::new("wtype");
             if is_terminal {
-                cmd.args(["-M", "ctrl", "-M", "shift", "-k", "v", "-m", "shift", "-m", "ctrl"]);
+                cmd.args([
+                    "-M", "ctrl", "-M", "shift", "-k", "v", "-m", "shift", "-m", "ctrl",
+                ]);
             } else {
                 cmd.args(["-M", "ctrl", "-k", "v", "-m", "ctrl"]);
             }
@@ -126,8 +134,15 @@ impl KeyInjector {
 
         // Try xdotool (X11)
         if std::env::var_os("DISPLAY").is_some() {
-            let key = if is_terminal { "ctrl+shift+v" } else { "ctrl+v" };
-            if let Ok(status) = std::process::Command::new("xdotool").args(["key", key]).status() {
+            let key = if is_terminal {
+                "ctrl+shift+v"
+            } else {
+                "ctrl+v"
+            };
+            if let Ok(status) = std::process::Command::new("xdotool")
+                .args(["key", key])
+                .status()
+            {
                 if status.success() {
                     return Ok(());
                 }

@@ -1,9 +1,7 @@
 //! High-performance GGML Whisper inference engine using `whisper-rs`.
 
 use std::path::PathBuf;
-use whisper_rs::{
-    FullParams, SamplingStrategy, WhisperContext, WhisperContextParameters,
-};
+use whisper_rs::{FullParams, SamplingStrategy, WhisperContext, WhisperContextParameters};
 
 use crate::error::CoreError;
 use crate::text::process_transcription;
@@ -88,9 +86,10 @@ impl WhisperEngine {
             )));
         }
 
-        let path_str = config.model_path.to_str().ok_or_else(|| {
-            CoreError::Whisper("Invalid non-UTF8 model path".into())
-        })?;
+        let path_str = config
+            .model_path
+            .to_str()
+            .ok_or_else(|| CoreError::Whisper("Invalid non-UTF8 model path".into()))?;
 
         let params = WhisperContextParameters::default();
         let context = WhisperContext::new_with_params(path_str, params)
@@ -161,9 +160,9 @@ impl WhisperEngine {
             let seg = state
                 .get_segment(i)
                 .ok_or_else(|| CoreError::Whisper(format!("Failed to read segment {i}")))?;
-            let text = seg
-                .to_str_lossy()
-                .map_err(|e| CoreError::Whisper(format!("Failed to decode segment text {i}: {e}")))?;
+            let text = seg.to_str_lossy().map_err(|e| {
+                CoreError::Whisper(format!("Failed to decode segment text {i}: {e}"))
+            })?;
             let start_ms = seg.start_timestamp() * 10;
             let end_ms = seg.end_timestamp() * 10;
 

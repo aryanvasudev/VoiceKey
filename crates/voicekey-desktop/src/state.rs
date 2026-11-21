@@ -239,7 +239,10 @@ pub fn spawn_actor() -> EngineHandle {
                                         match WhisperEngine::load_from_file(cfg) {
                                             Ok(eng) => {
                                                 let arc_eng = Arc::new(eng);
-                                                cached_engine = Some((model_name.clone(), Arc::clone(&arc_eng)));
+                                                cached_engine = Some((
+                                                    model_name.clone(),
+                                                    Arc::clone(&arc_eng),
+                                                ));
                                                 arc_eng
                                             }
                                             Err(e) => {
@@ -260,7 +263,11 @@ pub fn spawn_actor() -> EngineHandle {
 
                             // Transcribe in worker thread
                             let t0 = Instant::now();
-                            let result = match tokio::task::spawn_blocking(move || engine.transcribe(&samples)).await {
+                            let result = match tokio::task::spawn_blocking(move || {
+                                engine.transcribe(&samples)
+                            })
+                            .await
+                            {
                                 Ok(Ok(res)) => res,
                                 Ok(Err(e)) => {
                                     error!("Transcription failed: {e}");
@@ -275,7 +282,11 @@ pub fn spawn_actor() -> EngineHandle {
                                     continue;
                                 }
                             };
-                            info!("Transcription completed in {:.2}s: '{}'", t0.elapsed().as_secs_f64(), result.text);
+                            info!(
+                                "Transcription completed in {:.2}s: '{}'",
+                                t0.elapsed().as_secs_f64(),
+                                result.text
+                            );
 
                             if !result.text.is_empty() {
                                 state = EngineState::Pasting;
@@ -283,8 +294,13 @@ pub fn spawn_actor() -> EngineHandle {
 
                                 let text_to_paste = result.text;
                                 let _ = tokio::task::spawn_blocking(move || {
-                                    let _ = ClipboardManager::paste_and_restore(&text_to_paste, true, 250);
-                                }).await;
+                                    let _ = ClipboardManager::paste_and_restore(
+                                        &text_to_paste,
+                                        true,
+                                        250,
+                                    );
+                                })
+                                .await;
                             }
 
                             state = EngineState::Idle;

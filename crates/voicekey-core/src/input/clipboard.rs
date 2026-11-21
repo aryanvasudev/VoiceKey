@@ -1,9 +1,9 @@
 //! Cross-platform clipboard manager with 250ms debounced restoration queue.
 
+use arboard::Clipboard;
 use std::sync::Mutex;
 use std::thread;
 use std::time::Duration;
-use arboard::Clipboard;
 
 use crate::error::CoreError;
 use crate::input::injector::KeyInjector;
@@ -82,7 +82,9 @@ impl ClipboardManager {
         if arboard_ok {
             Ok(())
         } else {
-            Err(CoreError::Audio("Failed to write to system clipboard".into()))
+            Err(CoreError::Audio(
+                "Failed to write to system clipboard".into(),
+            ))
         }
     }
 

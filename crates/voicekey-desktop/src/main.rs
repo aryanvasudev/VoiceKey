@@ -10,13 +10,16 @@ mod tray;
 use tauri::Manager;
 use tracing::{error, info};
 
-use voicekey_core::ipc::{IpcCommand, IpcResponse, IpcServer};
 use crate::state::spawn_actor;
 use crate::tray::setup_tray;
+use voicekey_core::ipc::{IpcCommand, IpcResponse, IpcServer};
 
 fn main() {
     tracing_subscriber::fmt::init();
-    info!("Starting VoiceKey Desktop Shell v{}", env!("CARGO_PKG_VERSION"));
+    info!(
+        "Starting VoiceKey Desktop Shell v{}",
+        env!("CARGO_PKG_VERSION")
+    );
 
     let engine = spawn_actor();
 
@@ -56,7 +59,10 @@ fn main() {
         }
     }) {
         Ok(srv) => {
-            info!("Desktop IPC server listening on: {}", srv.socket_path().display());
+            info!(
+                "Desktop IPC server listening on: {}",
+                srv.socket_path().display()
+            );
             Some(srv)
         }
         Err(e) => {
@@ -83,17 +89,19 @@ fn main() {
             crate::commands::save_settings_cmd,
             crate::commands::open_settings_window,
         ])
-        .plugin(tauri_plugin_single_instance::init(move |app, _argv, _cwd| {
-            info!("Second instance detected! Focusing application and triggering toggle.");
-            let engine = engine_for_single_instance.clone();
-            tauri::async_runtime::spawn(async move {
-                engine.toggle().await;
-            });
-            if let Some(win) = app.get_webview_window("overlay") {
-                let _ = win.show();
-                let _ = win.set_focus();
-            }
-        }))
+        .plugin(tauri_plugin_single_instance::init(
+            move |app, _argv, _cwd| {
+                info!("Second instance detected! Focusing application and triggering toggle.");
+                let engine = engine_for_single_instance.clone();
+                tauri::async_runtime::spawn(async move {
+                    engine.toggle().await;
+                });
+                if let Some(win) = app.get_webview_window("overlay") {
+                    let _ = win.show();
+                    let _ = win.set_focus();
+                }
+            },
+        ))
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
             Some(vec!["--minimized"]),

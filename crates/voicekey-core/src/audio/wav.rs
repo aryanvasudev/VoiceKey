@@ -1,11 +1,15 @@
 //! WAV file encoding and decoding utilities using `hound`.
 
-use std::path::Path;
-use hound::{WavReader, WavSpec, WavWriter};
 use crate::error::CoreError;
+use hound::{WavReader, WavSpec, WavWriter};
+use std::path::Path;
 
 /// Save mono float32 audio samples to a 16-bit PCM WAV file.
-pub fn write_wav<P: AsRef<Path>>(path: P, samples: &[f32], sample_rate: u32) -> Result<(), CoreError> {
+pub fn write_wav<P: AsRef<Path>>(
+    path: P,
+    samples: &[f32],
+    sample_rate: u32,
+) -> Result<(), CoreError> {
     let spec = WavSpec {
         channels: 1,
         sample_rate,
@@ -44,10 +48,7 @@ pub fn read_wav<P: AsRef<Path>>(path: P) -> Result<(Vec<f32>, u32), CoreError> {
     let sample_rate = spec.sample_rate;
 
     let interleaved: Vec<f32> = match spec.sample_format {
-        hound::SampleFormat::Float => reader
-            .samples::<f32>()
-            .map(|s| s.unwrap_or(0.0))
-            .collect(),
+        hound::SampleFormat::Float => reader.samples::<f32>().map(|s| s.unwrap_or(0.0)).collect(),
         hound::SampleFormat::Int => {
             let max_val = match spec.bits_per_sample {
                 8 => 128.0,

@@ -13,7 +13,10 @@ fn test_spoken_punctuation_parity_with_python_v1() {
         ("new line newline new paragraph", "\n\n\n\n"),
         ("what is this question mark", "what is this?"),
         ("warning exclamation mark", "warning!"),
-        ("key colon value semicolon next hyphen item", "key: value; next- item"),
+        (
+            "key colon value semicolon next hyphen item",
+            "key: value; next- item",
+        ),
         (
             "this is a sentence period next sentence question mark yes exclamation point",
             "this is a sentence. Next sentence? Yes!",
@@ -34,7 +37,10 @@ fn test_normalization_parity_with_python_v1() {
     let cases = vec![
         ("   leading and trailing   ", "Leading and trailing"),
         ("multiple     spaces     here", "Multiple spaces here"),
-        ("line one \n   line two\n\n\n\nline three", "Line one\nline two\n\nline three"),
+        (
+            "line one \n   line two\n\n\n\nline three",
+            "Line one\nline two\n\nline three",
+        ),
         ("lower case start", "Lower case start"),
         ("123 numbers unaffected", "123 numbers unaffected"),
         ("", ""),
@@ -114,7 +120,11 @@ fn test_end_to_end_dsp_pipeline() {
     // Expected length ~16000 samples
     let expected_16k_len = 16000;
     let diff = (mono_16k.len() as isize - expected_16k_len as isize).abs();
-    assert!(diff < 350, "Length was {} vs expected ~16000", mono_16k.len());
+    assert!(
+        diff < 350,
+        "Length was {} vs expected ~16000",
+        mono_16k.len()
+    );
 
     // 4. PreRollBuffer buffering
     let mut pre_roll = PreRollBuffer::new(16000, 200); // 200ms = 3200 samples
@@ -123,7 +133,10 @@ fn test_end_to_end_dsp_pipeline() {
 
     // 5. Dual VAD: Energy gating & speech detection
     let vad = EnergyVad::default();
-    assert!(vad.has_speech(&mono_16k), "Should detect speech in tone burst");
+    assert!(
+        vad.has_speech(&mono_16k),
+        "Should detect speech in tone burst"
+    );
 
     // 6. Silence trimming
     let trimmed = vad.trim_silence(&mono_16k);

@@ -1,9 +1,9 @@
 //! Cross-platform audio capture using `cpal` with dynamic device selection and resampling.
 
-use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
-use std::sync::{Arc, Mutex};
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use cpal::{Device, Host, Sample, SampleFormat, Stream, SupportedStreamConfig};
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
+use std::sync::{Arc, Mutex};
 
 use crate::audio::{downmix_to_mono, AudioResampler, PreRollBuffer};
 use crate::error::CoreError;
@@ -37,7 +37,10 @@ impl AudioCaptureManager {
 
     /// List all available audio input devices.
     pub fn list_input_devices(&self) -> Result<Vec<AudioDeviceInfo>, CoreError> {
-        let default_name = self.host.default_input_device().map(|d| get_device_name(&d));
+        let default_name = self
+            .host
+            .default_input_device()
+            .map(|d| get_device_name(&d));
 
         let devices = self
             .host
@@ -270,10 +273,8 @@ impl AudioRecorder {
                     }
 
                     // Convert raw samples to f32
-                    let float_samples: Vec<f32> = data
-                        .iter()
-                        .map(|&s| f32::from_sample(s))
-                        .collect();
+                    let float_samples: Vec<f32> =
+                        data.iter().map(|&s| f32::from_sample(s)).collect();
 
                     // Downmix interleaved multi-channel to mono
                     let mono_samples = if channels > 1 {
@@ -343,10 +344,8 @@ impl AudioRecorder {
 
         // Resample to target 16,000 Hz if recorded at different sample rate
         let final_16k = if self.active_sample_rate != self.config.target_sample_rate {
-            let resampler = AudioResampler::new(
-                self.active_sample_rate,
-                self.config.target_sample_rate,
-            )?;
+            let resampler =
+                AudioResampler::new(self.active_sample_rate, self.config.target_sample_rate)?;
             resampler.resample(&raw_recorded)?
         } else {
             raw_recorded
@@ -391,4 +390,3 @@ mod tests {
         assert!(default_dev.is_ok());
     }
 }
-

@@ -192,12 +192,7 @@ fn handle_devices() -> Result<()> {
             "".normal()
         };
 
-        println!(
-            "{}. {}{}",
-            i + 1,
-            dev.name.bold(),
-            default_tag
-        );
+        println!("{}. {}{}", i + 1, dev.name.bold(), default_tag);
         println!(
             "   Channels: {} | Default Sample Rate: {} Hz",
             dev.channels, dev.default_sample_rate
@@ -229,7 +224,9 @@ fn handle_record(
     println!("Target Format: 16,000 Hz 16-bit Mono PCM");
     println!("Pre-Roll Memory: {} ms", pre_roll_ms);
 
-    recorder.start().context("Failed to start audio recording")?;
+    recorder
+        .start()
+        .context("Failed to start audio recording")?;
 
     let is_running = Arc::new(AtomicBool::new(true));
     let is_running_clone = Arc::clone(&is_running);
@@ -270,7 +267,11 @@ fn handle_record(
 
     println!("{}", "✓ Recording Saved Successfully!".bold().green());
     println!("File: {}", output.display().to_string().bold());
-    println!("Duration: {:.2}s ({} samples)", duration_secs, samples.len());
+    println!(
+        "Duration: {:.2}s ({} samples)",
+        duration_secs,
+        samples.len()
+    );
     println!("RMS Level: {:.4} | Peak: {:.4}", rms, peak);
 
     Ok(())
@@ -328,18 +329,25 @@ fn handle_transcribe(
         bail!("Audio file not found: {}", file.display());
     }
 
-    println!("{}", "=== VoiceKey GGML Whisper Transcriber ===".bold().cyan());
+    println!(
+        "{}",
+        "=== VoiceKey GGML Whisper Transcriber ===".bold().cyan()
+    );
     println!("Input Audio: {}", file.display().to_string().bold());
 
     let (mut samples, sample_rate) = read_wav(&file).context("Failed to read audio file")?;
-    println!("Sample Rate: {} Hz ({} samples)", sample_rate, samples.len());
+    println!(
+        "Sample Rate: {} Hz ({} samples)",
+        sample_rate,
+        samples.len()
+    );
 
     // Resample to 16,000 Hz if necessary
     if sample_rate != 16000 {
         print!("Resampling {} Hz -> 16000 Hz...", sample_rate);
         io::stdout().flush().unwrap();
-        let resampler = AudioResampler::new(sample_rate, 16000)
-            .context("Failed to initialize resampler")?;
+        let resampler =
+            AudioResampler::new(sample_rate, 16000).context("Failed to initialize resampler")?;
         samples = resampler.resample(&samples).context("Resampling failed")?;
         println!(" Done ({} samples).", samples.len());
     }
@@ -413,7 +421,10 @@ fn handle_listen(
     spoken_punct: bool,
     prompt: Option<String>,
 ) -> Result<()> {
-    println!("{}", "=== Interactive VoiceKey Dictation Test ===".bold().cyan());
+    println!(
+        "{}",
+        "=== Interactive VoiceKey Dictation Test ===".bold().cyan()
+    );
     let model_path = resolve_model_path(&model)?;
     println!("Using Model: {}", model_path.display());
 
@@ -505,9 +516,20 @@ fn handle_listen(
 }
 
 fn handle_doctor() -> Result<()> {
-    println!("{}", "==============================================".cyan());
-    println!("{}", "         VoiceKey Hardware & Engine Doctor    ".bold().cyan());
-    println!("{}", "==============================================".cyan());
+    println!(
+        "{}",
+        "==============================================".cyan()
+    );
+    println!(
+        "{}",
+        "         VoiceKey Hardware & Engine Doctor    "
+            .bold()
+            .cyan()
+    );
+    println!(
+        "{}",
+        "==============================================".cyan()
+    );
 
     // 1. Audio input devices
     println!("\n{}", "1. Audio Subsystem & Microphones:".bold());
@@ -545,19 +567,35 @@ fn handle_doctor() -> Result<()> {
 
         println!(
             "   - AVX2:  {}",
-            if has_avx2 { "✓ Enabled".bold().green() } else { "✗ Not available".yellow() }
+            if has_avx2 {
+                "✓ Enabled".bold().green()
+            } else {
+                "✗ Not available".yellow()
+            }
         );
         println!(
             "   - FMA:   {}",
-            if has_fma { "✓ Enabled".bold().green() } else { "✗ Not available".yellow() }
+            if has_fma {
+                "✓ Enabled".bold().green()
+            } else {
+                "✗ Not available".yellow()
+            }
         );
         println!(
             "   - F16C:  {}",
-            if has_f16c { "✓ Enabled".bold().green() } else { "✗ Not available".yellow() }
+            if has_f16c {
+                "✓ Enabled".bold().green()
+            } else {
+                "✗ Not available".yellow()
+            }
         );
         println!(
             "   - BMI2:  {}",
-            if has_bmi2 { "✓ Enabled".bold().green() } else { "✗ Not available".yellow() }
+            if has_bmi2 {
+                "✓ Enabled".bold().green()
+            } else {
+                "✗ Not available".yellow()
+            }
         );
     }
     #[cfg(target_arch = "aarch64")]
@@ -606,7 +644,10 @@ fn handle_doctor() -> Result<()> {
         for d in &search_dirs {
             println!("     - {}", d.display());
         }
-        println!("\n   {} Run this command to download the fast base.en model:", "TIP:".cyan());
+        println!(
+            "\n   {} Run this command to download the fast base.en model:",
+            "TIP:".cyan()
+        );
         println!("     mkdir -p ~/.local/share/voicekey/models");
         println!("     curl -L https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin -o ~/.local/share/voicekey/models/ggml-base.en.bin");
     } else {
@@ -616,13 +657,23 @@ fn handle_doctor() -> Result<()> {
             found_models.len()
         );
         for (path, size_mb) in &found_models {
-            println!("     - {} ({:.1} MB)", path.display().to_string().bold(), size_mb);
+            println!(
+                "     - {} ({:.1} MB)",
+                path.display().to_string().bold(),
+                size_mb
+            );
         }
     }
 
     println!("\n{}", "Diagnosis Summary:".bold());
-    println!("   {} Core DSP, VAD & inference engine compiled natively.", "✓".green());
-    println!("   {} Cross-platform ALSA/WASAPI audio pipeline active.", "✓".green());
+    println!(
+        "   {} Core DSP, VAD & inference engine compiled natively.",
+        "✓".green()
+    );
+    println!(
+        "   {} Cross-platform ALSA/WASAPI audio pipeline active.",
+        "✓".green()
+    );
 
     Ok(())
 }
@@ -630,7 +681,12 @@ fn handle_doctor() -> Result<()> {
 fn handle_ipc(cmd: IpcCommand) -> Result<()> {
     match send_ipc_command(cmd) {
         Ok(IpcResponse::Ok) => {
-            println!("{}", format!("✓ IPC Command '{:?}' succeeded", cmd).bold().green());
+            println!(
+                "{}",
+                format!("✓ IPC Command '{:?}' succeeded", cmd)
+                    .bold()
+                    .green()
+            );
             Ok(())
         }
         Ok(IpcResponse::State(state)) => {
@@ -648,7 +704,10 @@ fn handle_ipc(cmd: IpcCommand) -> Result<()> {
 
 fn handle_paste(text: String, preserve: bool, delay_ms: u64) -> Result<()> {
     let is_terminal = is_active_window_terminal();
-    println!("{}", "=== VoiceKey Direct Input Injection ===".bold().cyan());
+    println!(
+        "{}",
+        "=== VoiceKey Direct Input Injection ===".bold().cyan()
+    );
     println!(
         "Active Window Target: {}",
         if is_terminal {
@@ -673,4 +732,3 @@ fn handle_paste(text: String, preserve: bool, delay_ms: u64) -> Result<()> {
     println!("{}", "✓ Text injected successfully!".bold().green());
     Ok(())
 }
-

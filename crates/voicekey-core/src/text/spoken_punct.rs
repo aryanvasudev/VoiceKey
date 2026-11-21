@@ -82,23 +82,20 @@ pub fn apply_spoken_punctuation(text: &str) -> String {
 
     let mut result = text.to_string();
     for rule in PUNCT_RULES.iter() {
-        result = rule.pattern.replace_all(&result, rule.replacement).into_owned();
+        result = rule
+            .pattern
+            .replace_all(&result, rule.replacement)
+            .into_owned();
     }
 
     // Clean up spaces before punctuation: "word ," -> "word,"
-    result = SPACES_BEFORE_PUNCT
-        .replace_all(&result, "$1")
-        .into_owned();
+    result = SPACES_BEFORE_PUNCT.replace_all(&result, "$1").into_owned();
 
     // Ensure space after punctuation if followed by alphanumeric: "word,next" -> "word, next"
-    result = SPACE_AFTER_PUNCT
-        .replace_all(&result, "$1 $2")
-        .into_owned();
+    result = SPACE_AFTER_PUNCT.replace_all(&result, "$1 $2").into_owned();
 
     // Clean up whitespace around newlines
-    result = WS_AROUND_NEWLINES
-        .replace_all(&result, "\n")
-        .into_owned();
+    result = WS_AROUND_NEWLINES.replace_all(&result, "\n").into_owned();
 
     // Capitalize first letter after period, exclamation mark, question mark, or newline
     result = CAPITALIZE_AFTER_PUNCT

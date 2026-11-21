@@ -158,13 +158,13 @@ A review of naive cross-platform assumptions revealed several critical edge case
   - Automatic hardware benchmark to recommend optimal model.
 
 ### Phase 6: Desktop Packaging & Multi-Platform CI/CD
-- [ ] **Windows Packaging:**
+- [x] **Windows Packaging:**
   - Self-contained `.msi` and NSIS `.exe` installers via `cargo tauri build`.
   - Auto-update support via `tauri-plugin-updater`.
-- [ ] **Linux Packaging:**
+- [x] **Linux Packaging:**
   - Standalone AppImage, `.deb`, and `.rpm`.
   - Udev rule installer script for non-root `/dev/uinput` access.
-- [ ] GitHub Actions CI workflow for automated cross-compilation of Windows and Linux binaries.
+- [x] GitHub Actions CI workflow for automated cross-compilation of Windows and Linux binaries.
 
 ### Phase 7: Android Core FFI (`uniffi-rs`)
 - [ ] Configure `uniffi-rs` interface definition for `voicekey-core`.

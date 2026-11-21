@@ -94,7 +94,8 @@ fn test_cli_help_shows_phase9_commands() {
 fn test_cli_ipc_commands_integration() {
     use voicekey_core::ipc::{IpcCommand, IpcResponse, IpcServer};
 
-    let test_sock = std::env::temp_dir().join(format!("voicekey_cli_ipc_{}.sock", std::process::id()));
+    let test_sock =
+        std::env::temp_dir().join(format!("voicekey_cli_ipc_{}.sock", std::process::id()));
     let _server = IpcServer::bind_at(&test_sock, |cmd| match cmd {
         IpcCommand::Status => IpcResponse::State("idle".into()),
         _ => IpcResponse::Ok,
@@ -156,4 +157,3 @@ fn test_cli_paste_command() {
     assert!(stdout.contains("Active Window Target:"));
     assert!(stdout.contains("Payload Size: 17 characters"));
 }
-
