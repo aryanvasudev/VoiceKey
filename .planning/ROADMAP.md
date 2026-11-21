@@ -74,11 +74,14 @@ Detailed technical specifications and loophole mitigations are documented in [.p
 
 Detailed technical specifications and loophole mitigations are documented in [.planning/V2_CROSS_PLATFORM_PLAN.md](file:///home/aryan/Documents/Projects/VoiceKey/.planning/V2_CROSS_PLATFORM_PLAN.md).
 
-- [ ] **Phase 16: Micro-LLM Post-Processing & Smart Dictation**
+- [x] **Phase 16: Micro-LLM Post-Processing & Smart Dictation**
   - Cross-platform micro-LLM inference engine integration (Qwen2.5-0.5B for ultra-fast/Android, Llama-3.2-1B for balanced editing, Qwen2.5-1.5B for code, plus local Ollama endpoint support).
-  - High-performance deterministic fast-path (Whisper only, < 150ms) vs. Triggered AI Mode (`Alt+Hotkey` or spoken `"VoiceKey [command]"` prefix).
+  - High-performance deterministic fast-path (Whisper only, < 150ms) vs. Triggered AI Mode (spoken `"VoiceKey [command]"` prefix or enabled toggle).
   - Core transforms: Bullet point structuring, filler word & stutter removal, tone adjustment (casual/professional), and voice-to-code syntax translation.
-  - Model selector and in-app GGUF model manager in Desktop & Android settings.
+  - Zero-latency, zero-dependency offline fallback transformer ensuring voice directives never fail.
+  - Model selector, endpoint configuration, and connectivity tester in Desktop Settings UI.
+  - CLI `transform` command for direct scripting and verification.
+  - Android FFI export `voicekey_transform_text` for instant on-device formatting.
 - [ ] **Phase 17: Low-Latency Streaming Transcription & Speculative Output**
   - Real-time partial transcript streaming into overlay visualizer with sub-100ms perceived latency.
   - Adaptive VAD silence hysteresis and chunked inference windowing.

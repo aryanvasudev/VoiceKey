@@ -17,6 +17,7 @@ hound = "3.5"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 dirs = "6.0"
+ureq = { version = "2.12", default-features = false, features = ["json", "tls"] }
 
 [target.'cfg(not(target_os = "android"))'.dependencies]
 arboard = "3.7"

@@ -129,6 +129,24 @@ enum Commands {
         #[arg(long, default_value_t = 250)]
         delay_ms: u64,
     },
+
+    /// Post-process or smart-format text using the Micro-LLM engine or offline rules
+    Transform {
+        /// Input raw text to transform (can contain directives like "VoiceKey bullets: ...")
+        text: String,
+
+        /// Explicit transform mode: auto, clean, bullets, professional, casual, code
+        #[arg(short, long, default_value = "auto")]
+        mode: String,
+
+        /// Local LLM API endpoint URL (default: http://127.0.0.1:11434)
+        #[arg(long, default_value = "http://127.0.0.1:11434")]
+        endpoint: String,
+
+        /// Model name identifier (e.g. qwen2.5:0.5b, llama3.2:1b)
+        #[arg(long, default_value = "qwen2.5:0.5b")]
+        model: String,
+    },
 }
 
 fn main() -> Result<()> {
@@ -168,6 +186,12 @@ fn main() -> Result<()> {
             no_restore,
             delay_ms,
         } => handle_paste(text, !no_restore, delay_ms)?,
+        Commands::Transform {
+            text,
+            mode,
+            endpoint,
+            model,
+        } => handle_transform(text, mode, endpoint, model)?,
     }
 
     Ok(())
@@ -730,5 +754,39 @@ fn handle_paste(text: String, preserve: bool, delay_ms: u64) -> Result<()> {
         .context("Failed to inject text via clipboard auto-paste")?;
 
     println!("{}", "✓ Text injected successfully!".bold().green());
+    Ok(())
+}
+
+fn handle_transform(text: String, mode: String, endpoint: String, model: String) -> Result<()> {
+    println!(
+        "{}",
+        "=== Micro-LLM Smart Dictation Transform ===".bold().cyan()
+    );
+    println!("{} {}", "Input:".bold(), text);
+
+    let forced_mode = match mode.to_lowercase().as_str() {
+        "clean" => Some(voicekey_core::llm::LlmTransformMode::CleanTranscript),
+        "bullets" | "bullet" => Some(voicekey_core::llm::LlmTransformMode::BulletPoints),
+        "professional" | "formal" => Some(voicekey_core::llm::LlmTransformMode::ProfessionalTone),
+        "casual" => Some(voicekey_core::llm::LlmTransformMode::CasualTone),
+        "code" => Some(voicekey_core::llm::LlmTransformMode::VoiceToCode),
+        _ => None, // "auto" uses spoken command parsing or direct text
+    };
+
+    let cfg = voicekey_core::llm::LlmConfig {
+        enabled: true,
+        endpoint,
+        model,
+        api_type: voicekey_core::llm::LlmApiType::OpenAiCompatible,
+        timeout_ms: 2000,
+        temperature: 0.1,
+        max_tokens: 256,
+    };
+
+    let client = voicekey_core::llm::HttpLlmClient::new(cfg);
+    let output = voicekey_core::llm::process_with_llm(&text, forced_mode, Some(&client))?;
+
+    println!("\n{}", "Result:".bold().green());
+    println!("{}", output);
     Ok(())
 }

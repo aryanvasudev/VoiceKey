@@ -59,6 +59,7 @@ fn main() {
             crate::commands::get_overlay_position,
             crate::commands::save_overlay_position,
             crate::commands::hide_overlay,
+            crate::commands::test_llm_connection,
         ])
         .plugin(tauri_plugin_single_instance::init(
             move |app, _argv, _cwd| {

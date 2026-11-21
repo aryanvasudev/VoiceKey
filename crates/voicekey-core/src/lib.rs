@@ -7,6 +7,7 @@ pub mod error;
 pub mod hotkey;
 pub mod input;
 pub mod ipc;
+pub mod llm;
 pub mod text;
 pub mod vad;
 
@@ -19,6 +20,10 @@ pub use error::CoreError;
 pub use hotkey::{HotkeyEvent, HotkeyMode, HotkeyRouter};
 pub use input::{is_active_window_terminal, ClipboardManager, KeyInjector, KNOWN_TERMINAL_CLASSES};
 pub use ipc::{get_socket_path, send_ipc_command, IpcCommand, IpcResponse, IpcServer};
+pub use llm::{
+    parse_spoken_command, process_with_llm, FallbackTransformer, HttpLlmClient, LlmApiType,
+    LlmClient, LlmConfig, LlmTransformMode, ParsedVoiceCommand,
+};
 pub use text::{apply_spoken_punctuation, normalize_text, process_transcription, VocabularyPrompt};
 pub use vad::{EnergyVad, VadConfig};
 

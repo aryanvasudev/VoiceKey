@@ -20,6 +20,26 @@ pub struct SettingsPayload {
     pub overlay_x: Option<f64>,
     #[serde(default)]
     pub overlay_y: Option<f64>,
+    #[serde(default)]
+    pub llm_enabled: bool,
+    #[serde(default = "default_llm_endpoint")]
+    pub llm_endpoint: String,
+    #[serde(default = "default_llm_model")]
+    pub llm_model: String,
+    #[serde(default = "default_llm_mode")]
+    pub llm_transform_mode: String,
+}
+
+fn default_llm_endpoint() -> String {
+    "http://127.0.0.1:11434".into()
+}
+
+fn default_llm_model() -> String {
+    "qwen2.5:0.5b".into()
+}
+
+fn default_llm_mode() -> String {
+    "auto".into()
 }
 
 impl Default for SettingsPayload {
@@ -42,6 +62,10 @@ impl Default for SettingsPayload {
             launch_at_startup: false,
             overlay_x: None,
             overlay_y: None,
+            llm_enabled: false,
+            llm_endpoint: default_llm_endpoint(),
+            llm_model: default_llm_model(),
+            llm_transform_mode: default_llm_mode(),
         }
     }
 }
@@ -96,5 +120,8 @@ mod tests {
         assert_eq!(deserialized.active_model, original.active_model);
         assert_eq!(deserialized.clipboard_delay_ms, 250);
         assert!(deserialized.spoken_punctuation);
+        assert!(!deserialized.llm_enabled);
+        assert_eq!(deserialized.llm_model, "qwen2.5:0.5b");
+        assert_eq!(deserialized.llm_endpoint, "http://127.0.0.1:11434");
     }
 }

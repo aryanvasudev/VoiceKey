@@ -11,6 +11,7 @@ use crate::models::{
 use crate::settings::{load_settings, save_settings as persist_settings, SettingsPayload};
 use crate::state::{EngineHandle, EngineStatus};
 use voicekey_core::audio::AudioCaptureManager;
+use voicekey_core::LlmClient;
 
 /// DTO for audio input devices.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -228,4 +229,19 @@ pub fn hide_overlay(app: AppHandle) -> Result<(), String> {
         let _ = win.hide();
     }
     Ok(())
+}
+
+#[tauri::command]
+pub fn test_llm_connection(endpoint: String) -> Result<bool, String> {
+    let cfg = voicekey_core::llm::LlmConfig {
+        enabled: true,
+        endpoint,
+        model: "qwen2.5:0.5b".into(),
+        api_type: voicekey_core::llm::LlmApiType::OpenAiCompatible,
+        timeout_ms: 1000,
+        temperature: 0.1,
+        max_tokens: 16,
+    };
+    let client = voicekey_core::llm::HttpLlmClient::new(cfg);
+    Ok(client.is_available())
 }

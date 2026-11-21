@@ -193,6 +193,27 @@ A review of naive cross-platform assumptions revealed several critical edge case
 
 ---
 
+## 3.4 Milestone 3: On-Device AI Commands & Smart Dictation
+
+### Phase 16: Micro-LLM Post-Processing & Smart Dictation
+- [x] High-performance dual pathway:
+  - Fast-path (<150ms): Direct Whisper STT -> text normalization -> clipboard auto-paste with zero latency impact.
+  - Smart AI path: Triggered by spoken command prefixes (e.g. `"VoiceKey bullets: ..."`, `"VoiceKey code: ..."`, `"VoiceKey clean: ..."`) or enabled in settings.
+- [x] Micro-LLM Core engine (`voicekey-core::llm`):
+  - Deterministic prompt templates for bullets, cleaning stutters/fillers, professional/casual tone, voice-to-code, and custom instructions.
+  - Spoken command parser (`parse_spoken_command`) recognizing "voicekey", "voice key", and "vk" prefixes.
+  - Cross-platform HTTP LLM client (`HttpLlmClient`) supporting OpenAI-compatible and Ollama endpoints with strict 2s timeouts.
+  - Zero-latency offline fallback rule-based transformer (`FallbackTransformer`) guaranteeing spoken directives succeed even when offline.
+- [x] Desktop Shell integration:
+  - `SettingsPayload` expanded with `llm_enabled`, `llm_endpoint`, `llm_model`, and `llm_transform_mode`.
+  - Settings UI tab "Smart AI & LLM" with model selector (Qwen2.5-0.5B, Llama3.2-1B, Qwen2.5-1.5B, Custom), endpoint URL, and live connection tester.
+  - Tokio state actor runs transform in blocking pool before dispatching auto-paste.
+- [x] CLI & Android integrations:
+  - `voicekey-cli transform` subcommand for headless scripting and tests.
+  - `voicekey_transform_text` exported in `voicekey-android-ffi` for instant on-device formatting.
+
+---
+
 ## 4. Key Architectural Decisions Matrix
 
 | Component | Selected Approach | Alternative Rejected | Rationale |
