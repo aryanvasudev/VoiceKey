@@ -17,6 +17,7 @@ concurrency:
 
 env:
   CARGO_TERM_COLOR: always
+  WHISPER_DONT_GENERATE_BINDINGS: "1"
 
 jobs:
   test:
