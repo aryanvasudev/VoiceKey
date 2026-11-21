@@ -147,6 +147,33 @@ enum Commands {
         #[arg(long, default_value = "qwen2.5:0.5b")]
         model: String,
     },
+
+    /// Low-latency real-time streaming transcription & speculative output test
+    Stream {
+        /// Recording duration in seconds. If omitted, press Enter to stop.
+        #[arg(short, long)]
+        duration: Option<f64>,
+
+        /// Path to the GGML Whisper model or preset name (tiny.en, base.en, small.en)
+        #[arg(short, long, default_value = "base.en")]
+        model: String,
+
+        /// Name of the input audio device
+        #[arg(long)]
+        device: Option<String>,
+
+        /// Enable VAD silence hysteresis auto-commit (stops automatically after silence)
+        #[arg(long)]
+        auto_commit: bool,
+
+        /// Silence timeout in milliseconds before auto-commit (default: 800ms)
+        #[arg(long, default_value_t = 800)]
+        silence_ms: u32,
+
+        /// Initial prompt for vocabulary biasing
+        #[arg(short, long)]
+        prompt: Option<String>,
+    },
 }
 
 fn main() -> Result<()> {
@@ -192,6 +219,14 @@ fn main() -> Result<()> {
             endpoint,
             model,
         } => handle_transform(text, mode, endpoint, model)?,
+        Commands::Stream {
+            duration,
+            model,
+            device,
+            auto_commit,
+            silence_ms,
+            prompt,
+        } => handle_stream(duration, model, device, auto_commit, silence_ms, prompt)?,
     }
 
     Ok(())
@@ -788,5 +823,160 @@ fn handle_transform(text: String, mode: String, endpoint: String, model: String)
 
     println!("\n{}", "Result:".bold().green());
     println!("{}", output);
+    Ok(())
+}
+
+fn handle_stream(
+    duration: Option<f64>,
+    model: String,
+    device: Option<String>,
+    auto_commit: bool,
+    silence_ms: u32,
+    prompt: Option<String>,
+) -> Result<()> {
+    println!(
+        "{}",
+        "=== VoiceKey Streaming Transcription & Speculative Output ==="
+            .bold()
+            .cyan()
+    );
+
+    let model_path = resolve_model_path(&model)?;
+    println!("Model: {}", model_path.display().to_string().bold());
+    println!(
+        "Audio Input: {}",
+        device.as_deref().unwrap_or("System Default")
+    );
+    println!(
+        "Auto-Commit on Silence: {}",
+        if auto_commit {
+            format!("Enabled ({}ms hysteresis)", silence_ms).green()
+        } else {
+            "Disabled (manual stop)".yellow()
+        }
+    );
+
+    let whisper_cfg = WhisperConfig {
+        model_path,
+        language: Some("en".into()),
+        threads: 4,
+        temperature: 0.0,
+        translate: false,
+        initial_prompt: prompt.clone(),
+        enable_normalization: true,
+        enable_spoken_punctuation: true,
+    };
+
+    let engine = Arc::new(WhisperEngine::load_from_file(whisper_cfg)?);
+
+    let silence_frames = (silence_ms / 32).max(5) as usize;
+    let vad_cfg = voicekey_core::vad::AdaptiveVadConfig {
+        frame_size: 512,
+        speech_start_threshold: 0.002,
+        speech_hold_threshold: 0.0008,
+        min_speech_frames: 3,
+        silence_hysteresis_frames: silence_frames,
+        sample_rate: 16000,
+    };
+
+    let stream_cfg = voicekey_core::engine::StreamingConfig {
+        chunk_step_samples: 8000, // 500ms
+        min_samples_for_inference: 8000,
+        max_lookback_samples: 160000,
+        vad_config: vad_cfg,
+    };
+
+    let mut transcriber =
+        voicekey_core::engine::StreamingTranscriber::new(engine, stream_cfg, prompt);
+
+    let rec_cfg = AudioRecorderConfig {
+        device_name: device,
+        pre_roll_ms: 200,
+        target_sample_rate: 16000,
+    };
+    let mut recorder = AudioRecorder::new(rec_cfg);
+    recorder.start()?;
+
+    println!(
+        "\n{}",
+        "Speak into your microphone. Real-time speculative text streams below:".italic()
+    );
+    if duration.is_none() {
+        println!(
+            "{}",
+            "(Press Enter to stop and commit final output)".dimmed()
+        );
+    }
+
+    let running = Arc::new(AtomicBool::new(true));
+    let r = running.clone();
+
+    // Spawn non-blocking Enter key listener if duration is None
+    if duration.is_none() && !auto_commit {
+        std::thread::spawn(move || {
+            let mut line = String::new();
+            let _ = io::stdin().read_line(&mut line);
+            r.store(false, Ordering::SeqCst);
+        });
+    }
+
+    let start_time = Instant::now();
+    let mut last_sample_count = 0;
+
+    while running.load(Ordering::SeqCst) {
+        if let Some(d) = duration {
+            if start_time.elapsed().as_secs_f64() >= d {
+                break;
+            }
+        }
+
+        std::thread::sleep(Duration::from_millis(50));
+
+        if let Ok(samples) = recorder.peek_samples() {
+            if samples.len() > last_sample_count {
+                let new_samples = &samples[last_sample_count..];
+                last_sample_count = samples.len();
+
+                // Feed 512-sample frames into streaming transcriber
+                for frame in new_samples.chunks(512) {
+                    if frame.len() == 512 {
+                        match transcriber.feed_frame(frame) {
+                            Ok(voicekey_core::engine::StreamingOutput::Partial {
+                                text, ..
+                            }) => {
+                                print!("\r\x1b[2K{} {}", "[LIVE]".bold().green(), text);
+                                let _ = io::stdout().flush();
+                            }
+                            Ok(voicekey_core::engine::StreamingOutput::Final { result }) => {
+                                println!(
+                                    "\n{} {}",
+                                    "[UTTERANCE COMPLETE]".bold().cyan(),
+                                    result.text
+                                );
+                                if auto_commit {
+                                    running.store(false, Ordering::SeqCst);
+                                    break;
+                                }
+                            }
+                            Ok(voicekey_core::engine::StreamingOutput::None) => {}
+                            Err(e) => {
+                                eprintln!("\nStreaming error: {}", e);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    let _ = recorder.stop();
+    let final_res = transcriber.finish()?;
+
+    println!(
+        "\n\n{}",
+        "=== Final Streaming Transcript ===".bold().green()
+    );
+    println!("{}", final_res.text);
+
     Ok(())
 }

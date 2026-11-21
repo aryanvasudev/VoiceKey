@@ -212,3 +212,18 @@ fn test_cli_transform_command() {
     let clean_stdout = String::from_utf8_lossy(&clean_output.stdout);
     assert!(clean_stdout.contains("I was thinking that maybe we should go"));
 }
+
+#[test]
+fn test_cli_stream_command_help() {
+    let bin = get_cli_bin();
+    let output = Command::new(&bin)
+        .args(["stream", "--help"])
+        .output()
+        .expect("Failed to execute voicekey-cli stream --help");
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("Low-latency real-time streaming transcription"));
+    assert!(stdout.contains("--auto-commit"));
+    assert!(stdout.contains("--silence-ms"));
+}

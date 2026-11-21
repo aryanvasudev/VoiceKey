@@ -82,9 +82,13 @@ Detailed technical specifications and loophole mitigations are documented in [.p
   - Model selector, endpoint configuration, and connectivity tester in Desktop Settings UI.
   - CLI `transform` command for direct scripting and verification.
   - Android FFI export `voicekey_transform_text` for instant on-device formatting.
-- [ ] **Phase 17: Low-Latency Streaming Transcription & Speculative Output**
+- [x] **Phase 17: Low-Latency Streaming Transcription & Speculative Output**
   - Real-time partial transcript streaming into overlay visualizer with sub-100ms perceived latency.
-  - Adaptive VAD silence hysteresis and chunked inference windowing.
+  - Adaptive VAD silence hysteresis (`AdaptiveVad`) and chunked inference windowing (`StreamingTranscriber`).
+  - Hands-free auto-commit: automatically finishes recording and pastes upon detected silence after active speech.
+  - Desktop UI: live subtitle card `#streaming-preview` below overlay pill, settings toggles for streaming & silence timeout.
+  - Headless CLI: `stream` command for real-time terminal audio transcription.
+  - Android FFI: `voicekey_adaptive_vad_check_silence` export for mobile keyboard auto-commit.
 - [ ] **Phase 18: Wireless Remote Microphone (Android ↔ Desktop)**
   - Local Wi-Fi / mDNS zero-cloud pairing: use Android device as a low-latency wireless microphone for Linux/Windows desktops.
   - Bidirectional dictionary sync: share custom vocabulary and hotwords across devices.

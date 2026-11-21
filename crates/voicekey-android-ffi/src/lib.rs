@@ -279,6 +279,32 @@ pub fn voicekey_transform_text(text: String, mode: i32) -> String {
     voicekey_core::llm::process_with_llm(&text, forced_mode, None).unwrap_or(text)
 }
 
+/// Check if audio buffer contains completed utterance followed by silence hysteresis.
+/// Returns true if speech was present and followed by silence exceeding `silence_timeout_ms`.
+#[uniffi::export]
+pub fn voicekey_adaptive_vad_check_silence(samples: Vec<f32>, silence_timeout_ms: u32) -> bool {
+    let frame_size = 512;
+    let frames_required =
+        ((silence_timeout_ms as f32 / 1000.0) * 16000.0 / frame_size as f32).max(1.0) as usize;
+    let cfg = voicekey_core::vad::AdaptiveVadConfig {
+        frame_size,
+        speech_start_threshold: 0.002,
+        speech_hold_threshold: 0.0008,
+        min_speech_frames: 3,
+        silence_hysteresis_frames: frames_required,
+        sample_rate: 16000,
+    };
+    let mut vad = voicekey_core::vad::AdaptiveVad::new(cfg);
+    let mut completed = false;
+    for chunk in samples.chunks_exact(frame_size) {
+        if let voicekey_core::vad::VadEvent::UtteranceComplete { .. } = vad.process_frame(chunk) {
+            completed = true;
+            break;
+        }
+    }
+    completed
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -355,5 +381,22 @@ mod tests {
     fn test_engine_init_missing_model_returns_model_not_found() {
         let res = VoiceKeyEngine::new("/nonexistent/model.bin".to_string(), None);
         assert!(matches!(res, Err(VoiceKeyFfiError::ModelNotFound { .. })));
+    }
+
+    #[test]
+    #[allow(clippy::needless_range_loop)]
+    fn test_adaptive_vad_check_silence_ffi() {
+        // Pure silence should not trigger utterance complete (no speech occurred)
+        let silence = vec![0.0f32; 16000];
+        assert!(!voicekey_adaptive_vad_check_silence(silence, 200));
+
+        // Speech followed by sustained silence should trigger utterance complete
+        let mut audio = vec![0.0f32; 16000];
+        // 500ms speech
+        for i in 0..8000 {
+            audio[i] = 0.5 * ((i as f32 * 0.1).sin());
+        }
+        // remaining 8000 samples (500ms) are silence
+        assert!(voicekey_adaptive_vad_check_silence(audio, 200));
     }
 }
