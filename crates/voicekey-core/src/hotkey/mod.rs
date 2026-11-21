@@ -136,6 +136,7 @@ mod tests {
     use std::sync::atomic::AtomicUsize;
 
     #[test]
+    #[cfg(unix)]
     fn test_hotkey_router_tier2_ipc_trigger() {
         let test_sock =
             std::env::temp_dir().join(format!("voicekey_hotkey_test_{}.sock", std::process::id()));

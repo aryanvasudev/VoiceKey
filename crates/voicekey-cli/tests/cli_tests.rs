@@ -110,6 +110,7 @@ fn test_cli_help_shows_phase9_commands() {
 }
 
 #[test]
+#[cfg(unix)]
 fn test_cli_ipc_commands_integration() {
     use voicekey_core::ipc::{IpcCommand, IpcResponse, IpcServer};
 

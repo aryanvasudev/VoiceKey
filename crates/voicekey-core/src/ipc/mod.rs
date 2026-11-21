@@ -220,6 +220,7 @@ mod tests {
     use super::*;
 
     #[test]
+    #[cfg(unix)]
     fn test_ipc_roundtrip() {
         let test_sock =
             std::env::temp_dir().join(format!("voicekey_ipc_test_{}.sock", std::process::id()));
