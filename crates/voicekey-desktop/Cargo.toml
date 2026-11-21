@@ -1,0 +1,26 @@
+[package]
+name = "voicekey-desktop"
+version = "0.2.0"
+edition = "2021"
+description = "Tauri v2 Desktop Shell and System Tray for VoiceKey"
+authors = ["Aryan"]
+license = "MIT"
+
+[dependencies]
+voicekey-core = { path = "../voicekey-core" }
+tauri = { version = "2", features = ["tray-icon", "image-png"] }
+tauri-plugin-autostart = "2"
+tauri-plugin-single-instance = "2"
+tokio = { version = "1", features = ["full"] }
+tracing = "0.1"
+tracing-subscriber = "0.3"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+dirs = "6.0"
+sha2 = "0.10"
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "stream"] }
+futures-util = "0.3"
+
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }

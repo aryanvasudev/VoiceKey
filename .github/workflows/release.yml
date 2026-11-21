@@ -1,0 +1,102 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+  WHISPER_DONT_GENERATE_BINDINGS: "1"
+
+jobs:
+  build-release:
+    name: Build Release (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            target: x86_64-unknown-linux-gnu
+            artifact_name: linux-x86_64
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            artifact_name: windows-x86_64
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Setup Rust Cache
+        uses: Swatinem/rust-cache@v2
+
+      - name: Install Linux build dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libasound2-dev \
+            libwebkit2gtk-4.1-dev \
+            libayatana-appindicator3-dev \
+            libssl-dev \
+            librsvg2-dev
+
+      - name: Install Tauri CLI
+        run: cargo install tauri-cli --version "^2.0.0" --locked
+
+      - name: Build Headless CLI Binary
+        run: cargo build --release -p voicekey-cli
+
+      - name: Build Desktop Application Bundles
+        run: cargo tauri build
+
+      - name: Stage Linux Release Artifacts
+        if: runner.os == 'Linux'
+        run: |
+          mkdir -p release-dist
+          # Stage CLI archive
+          tar -czvf release-dist/voicekey-cli-${{ github.ref_name }}-linux-x86_64.tar.gz \
+            -C target/release voicekey-cli \
+            -C ../../scripts 99-voicekey-uinput.rules voicekey.desktop install_linux_desktop.sh
+
+          # Stage Tauri bundles
+          find target/release/bundle/deb -name "*.deb" -exec cp {} release-dist/ \;
+          find target/release/bundle/rpm -name "*.rpm" -exec cp {} release-dist/ \; 2>/dev/null || true
+          find target/release/bundle/appimage -name "*.AppImage" -exec cp {} release-dist/ \; 2>/dev/null || true
+
+          # Generate checksums
+          cd release-dist
+          sha256sum * > SHA256SUMS-linux-x86_64.txt
+
+      - name: Stage Windows Release Artifacts
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          mkdir -p release-dist
+          # Stage CLI archive
+          7z a release-dist/voicekey-cli-${{ github.ref_name }}-windows-x86_64.zip ./target/release/voicekey-cli.exe
+
+          # Stage Tauri bundles (.msi, .exe)
+          find target/release/bundle/nsis -name "*.exe" -exec cp {} release-dist/ \; 2>/dev/null || true
+          find target/release/bundle/msi -name "*.msi" -exec cp {} release-dist/ \; 2>/dev/null || true
+
+          # Generate checksums
+          cd release-dist
+          sha256sum * > SHA256SUMS-windows-x86_64.txt
+
+      - name: Upload Artifacts to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release-dist/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

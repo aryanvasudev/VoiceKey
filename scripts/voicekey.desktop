@@ -1,0 +1,20 @@
+[Desktop Entry]
+Name=VoiceKey
+GenericName=Voice Dictation Engine
+Comment=Privacy-first local voice dictation and hardware keystroke injection
+Exec=voicekey-desktop
+Icon=voicekey
+Terminal=false
+Type=Application
+Categories=Utility;Accessibility;AudioVideo;
+Keywords=voice;dictation;speech;whisper;hotkey;transcribe;
+StartupNotify=true
+Actions=ToggleDictation;OpenSettings;
+
+[Desktop Action ToggleDictation]
+Name=Toggle Dictation
+Exec=voicekey-cli toggle
+
+[Desktop Action OpenSettings]
+Name=Settings & Models
+Exec=voicekey-desktop

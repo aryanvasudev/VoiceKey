@@ -1,0 +1,7 @@
+[env]
+WHISPER_DONT_GENERATE_BINDINGS = "1"
+PKG_CONFIG_PATH = "/home/aryan/.local/lib/pkgconfig:/home/aryan/.local/usr/lib64/pkgconfig:/home/aryan/.local/usr/share/pkgconfig"
+
+[target.x86_64-unknown-linux-gnu]
+rustflags = ["-L", "/home/aryan/.local/lib", "-L", "/home/aryan/.local/usr/lib64"]
+
