@@ -1,0 +1,25 @@
+Categories:
+  - System
+  - Writing
+License: MIT
+AuthorName: Aryan Vasudev
+SourceCode: https://github.com/aryanvasudev/VoiceKey
+IssueTracker: https://github.com/aryanvasudev/VoiceKey/issues
+Changelog: https://github.com/aryanvasudev/VoiceKey/releases
+
+Summary: 100% offline, private voice dictation keyboard powered by quantized Whisper.
+Description: |-
+  VoiceKey brings fast on-device voice dictation to Android using quantized GGML
+  Whisper models. Audio capture, resampling, voice activity detection, and speech
+  transcription run 100% locally on the device with zero cloud dependencies.
+
+RepoType: git
+Repo: https://github.com/aryanvasudev/VoiceKey.git
+
+Builds:
+  - versionName: 0.2.0
+    versionCode: 2
+    commit: v0.2.0
+    subdir: android/app
+    gradle:
+      - assembleRelease

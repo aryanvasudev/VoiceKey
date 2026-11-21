@@ -1,0 +1,12 @@
+VoiceKey is an ultra-fast, 100% offline and private voice typing keyboard for Android.
+
+Built with a high-performance native Rust core and quantized GGML Whisper models, VoiceKey runs speech recognition directly on your device CPU with zero cloud dependencies, zero data collection, and zero telemetry.
+
+Key Features:
+- 100% Offline & Private: No audio recordings or transcriptions ever leave your device.
+- Direct Text Insertion: Seamless InputMethodService keyboard that types directly into any Android application via InputConnection.
+- Real-time Waveform: Fluid audio visualization while speaking.
+- In-App Model Downloader: Download verified quantized Whisper models (Tiny.en and Base.en) with automatic SHA-256 integrity validation.
+- Custom Vocabulary Prompts: Hotword priming for programming terms, Kubernetes, custom jargon, and foreign names.
+- Spoken Punctuation: Automatic replacement of spoken terms like "comma", "period", "question mark", and "new line".
+- Haptic Feedback: Tactile feedback on tap-to-talk.
