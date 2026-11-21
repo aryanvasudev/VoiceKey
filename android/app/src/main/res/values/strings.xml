@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">VoiceKey</string>
+    <string name="ime_name">VoiceKey Voice Keyboard</string>
+    <string name="subtype_voice">Voice Dictation</string>
+    <string name="recording_notification_title">VoiceKey Dictation Active</string>
+    <string name="recording_notification_text">Recording 16kHz audio for speech transcription...</string>
+    <string name="status_idle">Tap mic to speak</string>
+    <string name="status_recording">Listening...</string>
+    <string name="status_transcribing">Transcribing...</string>
+    <string name="status_done">Pasted text</string>
+    <string name="switch_keyboard">Switch Keyboard</string>
+    <string name="btn_backspace">⌫</string>
+    <string name="btn_space">Space</string>
+    <string name="btn_enter">↵</string>
+</resources>
