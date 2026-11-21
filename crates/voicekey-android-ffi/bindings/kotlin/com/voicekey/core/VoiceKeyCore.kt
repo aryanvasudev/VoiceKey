@@ -42,7 +42,7 @@ class VoiceKeyCore private constructor(
         initialPrompt: String? = null
     ): TranscriptionOutput {
         return engine.transcribePcm16(
-            pcmBytes.toList(),
+            pcmBytes,
             sampleRate.toUInt(),
             channels.toUShort(),
             initialPrompt
@@ -140,7 +140,7 @@ class VoiceKeyCore private constructor(
             channels: Int = 1
         ): FloatArray {
             return voicekeyPcm16ToSamples(
-                pcmBytes.toList(),
+                pcmBytes,
                 sampleRate.toUInt(),
                 channels.toUShort()
             ).toFloatArray()

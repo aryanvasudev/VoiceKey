@@ -38,6 +38,21 @@ class VoiceKeyAudioRecorder(
     private val lock = Any()
 
     /**
+     * Push audio bytes into the circular pre-roll buffer when idle.
+     */
+    fun pushPreRoll(data: ByteArray, offset: Int = 0, length: Int = data.size) {
+        synchronized(lock) {
+            for (i in offset until offset + length) {
+                preRollBuffer[preRollHead] = data[i]
+                preRollHead = (preRollHead + 1) % preRollCapacityBytes
+                if (preRollHead == 0) {
+                    preRollFilled = true
+                }
+            }
+        }
+    }
+
+    /**
      * Start recording audio from the microphone asynchronously.
      *
      * @param onAmplitude Optional callback for real-time normalized audio amplitude (0.0 to 1.0)
@@ -79,6 +94,8 @@ class VoiceKeyAudioRecorder(
             } else if (preRollHead > 0) {
                 capturedAudio.write(preRollBuffer, 0, preRollHead)
             }
+            preRollHead = 0
+            preRollFilled = false
         }
 
         record.startRecording()
@@ -90,6 +107,13 @@ class VoiceKeyAudioRecorder(
                 if (bytesRead > 0) {
                     synchronized(lock) {
                         capturedAudio.write(chunk, 0, bytesRead)
+                        for (i in 0 until bytesRead) {
+                            preRollBuffer[preRollHead] = chunk[i]
+                            preRollHead = (preRollHead + 1) % preRollCapacityBytes
+                            if (preRollHead == 0) {
+                                preRollFilled = true
+                            }
+                        }
                     }
 
                     // Calculate amplitude for UI animation

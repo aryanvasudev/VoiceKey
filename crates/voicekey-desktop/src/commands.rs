@@ -114,7 +114,8 @@ pub async fn save_settings_cmd(
     engine: State<'_, EngineHandle>,
     settings: SettingsPayload,
 ) -> Result<(), String> {
-    // 1. Update active model in engine actor
+    // 1. Update active model and settings in engine actor
+    engine.update_settings(settings.clone()).await;
     engine.set_model(settings.active_model.clone()).await;
 
     // 2. Update autostart if requested

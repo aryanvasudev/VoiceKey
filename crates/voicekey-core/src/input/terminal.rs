@@ -86,16 +86,41 @@ pub fn is_active_window_terminal() -> bool {
     #[cfg(target_os = "windows")]
     {
         // On Windows, query active foreground window process
+        use windows_sys::Win32::Foundation::CloseHandle;
+        use windows_sys::Win32::System::Threading::{
+            OpenProcess, QueryFullProcessImageNameW, PROCESS_NAME_FORMAT,
+            PROCESS_QUERY_LIMITED_INFORMATION,
+        };
         use windows_sys::Win32::UI::WindowsAndMessaging::{
             GetForegroundWindow, GetWindowThreadProcessId,
         };
         unsafe {
             let hwnd = GetForegroundWindow();
-            if hwnd != 0 {
+            if !hwnd.is_null() {
                 let mut pid: u32 = 0;
                 GetWindowThreadProcessId(hwnd, &mut pid);
                 if pid > 0 {
-                    // Inspect process name if needed
+                    let handle = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid);
+                    if !handle.is_null() {
+                        let mut buf = [0u16; 1024];
+                        let mut size = buf.len() as u32;
+                        let success = QueryFullProcessImageNameW(
+                            handle,
+                            0 as PROCESS_NAME_FORMAT,
+                            buf.as_mut_ptr(),
+                            &mut size,
+                        );
+                        CloseHandle(handle);
+                        if success != 0 && size > 0 {
+                            let path =
+                                String::from_utf16_lossy(&buf[..size as usize]).to_lowercase();
+                            for &term in KNOWN_TERMINAL_CLASSES {
+                                if path.contains(term) {
+                                    return true;
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }

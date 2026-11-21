@@ -57,6 +57,7 @@ pub enum ActorCommand {
     SetMute(bool),
     GetStatus(oneshot::Sender<EngineStatus>),
     AutoCommit(u64),
+    UpdateSettings(Box<crate::settings::SettingsPayload>),
 }
 
 /// Handle to communicate with the background state machine actor.
@@ -95,6 +96,13 @@ impl EngineHandle {
     #[allow(dead_code)]
     pub async fn set_mute(&self, muted: bool) {
         let _ = self.cmd_tx.send(ActorCommand::SetMute(muted)).await;
+    }
+
+    pub async fn update_settings(&self, settings: crate::settings::SettingsPayload) {
+        let _ = self
+            .cmd_tx
+            .send(ActorCommand::UpdateSettings(Box::new(settings)))
+            .await;
     }
 
     #[allow(dead_code)]
@@ -177,7 +185,8 @@ pub fn spawn_actor() -> EngineHandle {
     let actor_cmd_tx = cmd_tx.clone();
     tauri::async_runtime::spawn(async move {
         let mut state = EngineState::Idle;
-        let mut model_name = "base.en".to_string();
+        let mut settings = crate::settings::load_settings();
+        let mut model_name = settings.active_model.clone();
         let mut is_muted = false;
         let mut active_recorder: Option<Arc<std::sync::Mutex<AudioRecorder>>> = None;
         let mut cached_engine: Option<(String, Arc<WhisperEngine>)> = None;
@@ -230,7 +239,7 @@ pub fn spawn_actor() -> EngineHandle {
                                 voicekey_core::audio::SoundCue::Start,
                             );
                             let rec_config = AudioRecorderConfig {
-                                device_name: None,
+                                device_name: settings.audio_device.clone(),
                                 pre_roll_ms: 200,
                                 target_sample_rate: 16000,
                             };
@@ -253,15 +262,20 @@ pub fn spawn_actor() -> EngineHandle {
                             // Pre-warm Whisper engine if not yet cached
                             if cached_engine.is_none() {
                                 if let Some(path) = resolve_model_path(&model_name) {
+                                    let initial_prompt = if !settings.custom_vocabulary.is_empty() {
+                                        Some(settings.custom_vocabulary.join(", "))
+                                    } else {
+                                        None
+                                    };
                                     let cfg = WhisperConfig {
                                         model_path: path,
                                         language: Some("en".into()),
                                         threads: 4,
                                         temperature: 0.0,
                                         translate: false,
-                                        initial_prompt: None,
+                                        initial_prompt,
                                         enable_normalization: true,
-                                        enable_spoken_punctuation: true,
+                                        enable_spoken_punctuation: settings.spoken_punctuation,
                                     };
                                     if let Ok(eng) = WhisperEngine::load_from_file(cfg) {
                                         cached_engine = Some((model_name.clone(), Arc::new(eng)));
@@ -456,9 +470,16 @@ pub fn spawn_actor() -> EngineHandle {
                                             threads: 4,
                                             temperature: 0.0,
                                             translate: false,
-                                            initial_prompt: None,
+                                            initial_prompt: if !settings
+                                                .custom_vocabulary
+                                                .is_empty()
+                                            {
+                                                Some(settings.custom_vocabulary.join(", "))
+                                            } else {
+                                                None
+                                            },
                                             enable_normalization: true,
-                                            enable_spoken_punctuation: true,
+                                            enable_spoken_punctuation: settings.spoken_punctuation,
                                         };
                                         match WhisperEngine::load_from_file(cfg) {
                                             Ok(eng) => {
@@ -568,10 +589,11 @@ pub fn spawn_actor() -> EngineHandle {
 
                                 let paste_text = text_to_paste.clone();
                                 let delay_ms = current_settings.clipboard_delay_ms;
+                                let preserve = current_settings.clipboard_preserve;
                                 let paste_res = tokio::task::spawn_blocking(move || {
                                     ClipboardManager::paste_and_restore(
                                         &paste_text,
-                                        false, // Keep transcribed text in clipboard
+                                        preserve,
                                         delay_ms,
                                     )
                                 })
@@ -624,6 +646,17 @@ pub fn spawn_actor() -> EngineHandle {
                     info!("Switched active Whisper model to: {}", new_model);
                     model_name = new_model;
                     cached_engine = None; // Reset cached model
+                }
+                ActorCommand::UpdateSettings(new_settings) => {
+                    info!(
+                        "Actor received updated settings: model={}",
+                        new_settings.active_model
+                    );
+                    if settings.active_model != new_settings.active_model {
+                        model_name = new_settings.active_model.clone();
+                        cached_engine = None;
+                    }
+                    settings = *new_settings;
                 }
                 ActorCommand::ToggleMute => {
                     is_muted = !is_muted;

@@ -179,7 +179,18 @@ impl WhisperEngine {
             segments.len()
         );
 
-        let raw_text = raw_text_parts.join(" ");
+        let mut raw_text = String::new();
+        for part in &raw_text_parts {
+            if raw_text.is_empty() || raw_text.ends_with(' ') {
+                raw_text.push_str(part.trim_start());
+            } else if part.starts_with(' ') {
+                raw_text.push_str(part);
+            } else {
+                raw_text.push(' ');
+                raw_text.push_str(part);
+            }
+        }
+        let raw_text = raw_text.trim().to_string();
         let processed_text = process_transcription(
             &raw_text,
             self.config.enable_normalization,

@@ -195,7 +195,7 @@ impl AudioRecorder {
 
         let is_rec = Arc::clone(&self.is_recording);
         let captured = Arc::clone(&self.captured_samples);
-        let _pre_roll = Arc::clone(&self.pre_roll_buffer);
+        let pre_roll = Arc::clone(&self.pre_roll_buffer);
         let rms_bits = Arc::clone(&self.rms_bits);
         let peak_bits = Arc::clone(&self.peak_bits);
 
@@ -210,6 +210,7 @@ impl AudioRecorder {
                 channels,
                 is_rec,
                 captured,
+                pre_roll,
                 rms_bits,
                 peak_bits,
                 err_fn,
@@ -220,6 +221,7 @@ impl AudioRecorder {
                 channels,
                 is_rec,
                 captured,
+                pre_roll,
                 rms_bits,
                 peak_bits,
                 err_fn,
@@ -230,6 +232,7 @@ impl AudioRecorder {
                 channels,
                 is_rec,
                 captured,
+                pre_roll,
                 rms_bits,
                 peak_bits,
                 err_fn,
@@ -256,6 +259,7 @@ impl AudioRecorder {
         channels: usize,
         is_rec: Arc<AtomicBool>,
         captured: Arc<Mutex<Vec<f32>>>,
+        pre_roll: Arc<Mutex<PreRollBuffer>>,
         rms_bits: Arc<AtomicU32>,
         peak_bits: Arc<AtomicU32>,
         err_fn: impl FnMut(cpal::Error) + Send + 'static,
@@ -268,10 +272,6 @@ impl AudioRecorder {
             .build_input_stream(
                 config.config(),
                 move |data: &[T], _: &cpal::InputCallbackInfo| {
-                    if !is_rec.load(Ordering::Relaxed) {
-                        return;
-                    }
-
                     // Convert raw samples to f32
                     let float_samples: Vec<f32> =
                         data.iter().map(|&s| f32::from_sample(s)).collect();
@@ -302,9 +302,16 @@ impl AudioRecorder {
                     rms_bits.store(rms.to_bits(), Ordering::Relaxed);
                     peak_bits.store(peak.to_bits(), Ordering::Relaxed);
 
-                    // Append to recording buffer
-                    if let Ok(mut buf) = captured.lock() {
-                        buf.extend_from_slice(&mono_samples);
+                    if is_rec.load(Ordering::Relaxed) {
+                        // Append to recording buffer
+                        if let Ok(mut buf) = captured.lock() {
+                            buf.extend_from_slice(&mono_samples);
+                        }
+                    } else {
+                        // Maintain circular pre-roll buffer while idling
+                        if let Ok(mut pre) = pre_roll.lock() {
+                            pre.push_samples(&mono_samples);
+                        }
                     }
                 },
                 err_fn,
@@ -331,8 +338,10 @@ impl AudioRecorder {
         };
 
         let pre_roll_samples = {
-            let pre = self.pre_roll_buffer.lock().unwrap();
-            pre.get_pre_roll()
+            let mut pre = self.pre_roll_buffer.lock().unwrap();
+            let samples = pre.get_pre_roll();
+            pre.clear();
+            samples
         };
 
         // Prepend pre-roll buffer
