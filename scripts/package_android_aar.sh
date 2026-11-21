@@ -58,14 +58,16 @@ touch "${STAGING_DIR}/R.txt"
 
 # 4. Copy JNI native libraries
 mkdir -p "${STAGING_DIR}/jni"
-if [[ -d "${JNI_LIBS_DIR}" ]]; then
-    for ABI in arm64-v8a x86_64; do
-        if [[ -d "${JNI_LIBS_DIR}/${ABI}" ]]; then
-            mkdir -p "${STAGING_DIR}/jni/${ABI}"
-            cp "${JNI_LIBS_DIR}/${ABI}"/*.so "${STAGING_DIR}/jni/${ABI}/" 2>/dev/null || true
-        fi
-    done
-fi
+for ABI in arm64-v8a x86_64; do
+    ABI_LIB="${JNI_LIBS_DIR}/${ABI}/libvoicekey_android_ffi.so"
+    if [[ ! -f "${ABI_LIB}" ]]; then
+        echo "ERROR: Missing native library for ABI ${ABI} at ${ABI_LIB}."
+        echo "Please run ./scripts/build_android_native.sh first."
+        exit 1
+    fi
+    mkdir -p "${STAGING_DIR}/jni/${ABI}"
+    cp "${JNI_LIBS_DIR}/${ABI}"/*.so "${STAGING_DIR}/jni/${ABI}/"
+done
 
 # 5. Build classes.jar
 CLASSES_DIR="${STAGING_DIR}/classes"

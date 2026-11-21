@@ -77,20 +77,23 @@ export CMAKE_MAKE_PROGRAM="$(which make 2>/dev/null || echo /usr/bin/make)"
 
 for TARGET in ${BUILD_TARGETS[*]}; do
     echo "==> Compiling for ${TARGET} (API 29)..."
-    if [[ "${TARGET}" == "arm64-v8a" ]]; then
-        export CMAKE_TOOLCHAIN_FILE="${SCRIPT_DIR}/cmake/android-arm64-toolchain.cmake"
-        export CMAKE_ANDROID_ARCH_ABI="arm64-v8a"
-    elif [[ "${TARGET}" == "x86_64" ]]; then
-        export CMAKE_TOOLCHAIN_FILE="${SCRIPT_DIR}/cmake/android-x86_64-toolchain.cmake"
-        export CMAKE_ANDROID_ARCH_ABI="x86_64"
-    fi
+    (
+        if [[ "${TARGET}" == "arm64-v8a" ]]; then
+            export CMAKE_TOOLCHAIN_FILE="${SCRIPT_DIR}/cmake/android-arm64-toolchain.cmake"
+            export CMAKE_ANDROID_ARCH_ABI="arm64-v8a"
+        elif [[ "${TARGET}" == "x86_64" ]]; then
+            export CMAKE_TOOLCHAIN_FILE="${SCRIPT_DIR}/cmake/android-x86_64-toolchain.cmake"
+            export CMAKE_ANDROID_ARCH_ABI="x86_64"
+        fi
 
-    cargo ndk \
-        -t "${TARGET}" \
-        -P 29 \
-        -o "${JNI_LIBS_DIR}" \
-        build --release \
-        -p voicekey-android-ffi
+        cargo ndk \
+            -t "${TARGET}" \
+            -P 29 \
+            --link-libcxx-shared \
+            -o "${JNI_LIBS_DIR}" \
+            build --release \
+            -p voicekey-android-ffi
+    )
 done
 
 echo "==> Native libraries successfully compiled into ${JNI_LIBS_DIR}:"
