@@ -28,4 +28,43 @@
   - Automated installer script (`scripts/install_systemd_service.sh`).
   - Comprehensive environment and installation verification diagnostic (`scripts/verify_installation.py`).
 
+## Milestone 2: Cross-Platform Ecosystem (Linux, Windows, Android)
 
+Detailed technical specifications and loophole mitigations are documented in [.planning/V2_CROSS_PLATFORM_PLAN.md](file:///home/aryan/Documents/Projects/VoiceKey/.planning/V2_CROSS_PLATFORM_PLAN.md).
+
+- [ ] **Phase 7: Shared Rust Engine (`voicekey-core`)**
+  - Audio pipeline: `rubato` 16kHz resampling, stereo-to-mono downmixing, circular buffer with 200ms pre-roll.
+  - Quantized GGML Whisper inference via `whisper-rs` (`whisper.cpp` engine).
+  - VAD (energy gating and silence trimming), custom vocabulary biasing, and text post-processing.
+  - Parity test suite against Python v1 baseline outputs.
+- [ ] **Phase 8: Headless CLI & Cross-Platform Audio Capture**
+  - Standalone headless verification tool (`voicekey-cli`).
+  - Audio capture via `cpal` (WASAPI on Windows, PipeWire/ALSA on Linux) with dynamic device reconnection.
+- [ ] **Phase 9: Cross-Platform Input Injection & 3-Tier Hotkeys**
+  - Windows: Win32 `SendInput` hardware keystroke injection and `WH_KEYBOARD_LL` low-level hook (supporting Push-to-Talk and Toggle).
+  - Linux: XDG Desktop Portal Global Shortcuts with IPC socket fallback for desktop shortcuts (`gsettings`, `sway`, `hyprland`).
+  - Terminal-aware pasting (`Ctrl+Shift+V`) and 250ms debounced clipboard restoration.
+- [ ] **Phase 10: Tauri v2 Desktop Shell & System Tray**
+  - Tokio actor state machine (`Idle` <-> `Recording` <-> `Transcribing` <-> `Pasting`).
+  - Native System Tray menu with color-coded status, model selection, and mute toggle.
+  - Autostart integration via `tauri-plugin-autostart`.
+- [ ] **Phase 11: Floating Overlay Pill, Settings UI & Model Manager**
+  - Lightweight transparent, draggable floating recording pill with real-time waveform animation.
+  - Settings window for device selection, hotkey customization, and custom vocabulary dictionary.
+  - Model Manager for background download and SHA-256 verification of quantized GGML models.
+- [ ] **Phase 12: Desktop Packaging & Multi-Platform CI/CD**
+  - Windows: Self-contained `.msi` and NSIS `.exe` installers with WebView2 verification.
+  - Linux: Standalone AppImage, `.deb`, `.rpm`, and udev rule installer.
+  - Multi-platform automated GitHub Actions CI/CD matrix.
+- [ ] **Phase 13: Android Core FFI (`uniffi-rs`)**
+  - UniFFI interface definitions for `voicekey-core`.
+  - Android NDK (`cargo-ndk`) cross-compilation for `aarch64-linux-android`.
+  - Android `.aar` library packaging and Kotlin test harness.
+- [ ] **Phase 14: Android IME & Audio Capture**
+  - Android Studio project: `InputMethodService` (VoiceKey custom keyboard).
+  - Native `AudioRecord` 16kHz streaming bound to Foreground Service (microphone privacy).
+  - Direct text insertion via `InputConnection.commitText()`.
+- [ ] **Phase 15: Android Settings, Model Manager & Distribution**
+  - Jetpack Compose settings screen and in-app model downloader.
+  - Haptic feedback and custom prompt dictionary.
+  - Production APK / AAB builds for GitHub Releases and F-Droid.
