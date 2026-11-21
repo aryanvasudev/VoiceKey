@@ -1,9 +1,9 @@
 //! Cross-platform hardware keystroke injection for auto-pasting.
 
 use crate::error::CoreError;
-#[cfg(any(target_os = "linux", target_os = "windows"))]
+#[cfg(target_os = "linux")]
 use std::thread::sleep;
-#[cfg(any(target_os = "linux", target_os = "windows"))]
+#[cfg(target_os = "linux")]
 use std::time::Duration;
 
 #[cfg(target_os = "linux")]

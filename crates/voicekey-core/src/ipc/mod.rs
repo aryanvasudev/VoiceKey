@@ -1,6 +1,7 @@
 //! Cross-platform Unix Domain Socket and Local IPC system for instant hotkey triggers.
 
 use std::fs;
+#[cfg(unix)]
 use std::io::{BufRead, BufReader, Write};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
