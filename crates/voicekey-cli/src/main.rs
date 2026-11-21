@@ -916,8 +916,11 @@ fn handle_stream(
     if duration.is_none() {
         std::thread::spawn(move || {
             let mut line = String::new();
-            let _ = io::stdin().read_line(&mut line);
-            r.store(false, Ordering::SeqCst);
+            if let Ok(n) = io::stdin().read_line(&mut line) {
+                if n > 0 {
+                    r.store(false, Ordering::SeqCst);
+                }
+            }
         });
     }
 
@@ -983,12 +986,24 @@ fn handle_stream(
     if final_samples.len() > last_sample_count {
         let suffix = &final_samples[last_sample_count..];
         for frame in suffix.chunks_exact(512) {
-            let _ = transcriber.feed_frame(frame);
+            if let Ok(voicekey_core::engine::StreamingOutput::Final { result }) =
+                transcriber.feed_frame(frame)
+            {
+                if !result.text.trim().is_empty() {
+                    completed_transcripts.push(result.text);
+                }
+            }
         }
         let rem = suffix.len() % 512;
         if rem > 0 {
             let short_frame = &suffix[suffix.len() - rem..];
-            let _ = transcriber.feed_frame(short_frame);
+            if let Ok(voicekey_core::engine::StreamingOutput::Final { result }) =
+                transcriber.feed_frame(short_frame)
+            {
+                if !result.text.trim().is_empty() {
+                    completed_transcripts.push(result.text);
+                }
+            }
         }
     }
 

@@ -98,8 +98,8 @@ impl StreamingTranscriber {
         self.audio_buffer.extend_from_slice(frame);
         let vad_event = self.vad.process_frame(frame);
 
-        // Bound memory while detector is idle (retain up to 1 second pre-roll)
-        if !self.vad.is_speaking() {
+        // Bound memory while detector is idle and not finalizing an utterance (retain up to 1 second pre-roll)
+        if !self.vad.is_speaking() && !matches!(vad_event, VadEvent::UtteranceComplete { .. }) {
             let max_idle_preroll = 16000;
             if self.audio_buffer.len() > max_idle_preroll {
                 let excess = self.audio_buffer.len() - max_idle_preroll;

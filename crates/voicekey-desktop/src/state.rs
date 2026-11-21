@@ -186,6 +186,37 @@ pub fn spawn_actor() -> EngineHandle {
         info!("VoiceKey Tokio State Machine Actor started in Idle state.");
 
         while let Some(cmd) = cmd_rx.recv().await {
+            let cmd = match cmd {
+                ActorCommand::Start => {
+                    if state == EngineState::Idle && !is_muted {
+                        info!("State transition: Idle -> Recording (Explicit Start)");
+                        ActorCommand::Toggle
+                    } else {
+                        continue;
+                    }
+                }
+                ActorCommand::Stop => {
+                    if state == EngineState::Recording {
+                        ActorCommand::Toggle
+                    } else {
+                        continue;
+                    }
+                }
+                ActorCommand::AutoCommit(sid) => {
+                    if state == EngineState::Recording && sid == current_session_id {
+                        info!("Session {} auto-commit executing stop & paste.", sid);
+                        ActorCommand::Toggle
+                    } else {
+                        info!(
+                            "AutoCommit ignored: received for retired session {} (current: {}, state: {:?})",
+                            sid, current_session_id, state
+                        );
+                        continue;
+                    }
+                }
+                other => other,
+            };
+
             match cmd {
                 ActorCommand::Toggle => {
                     match state {
@@ -247,6 +278,7 @@ pub fn spawn_actor() -> EngineHandle {
 
                                 tauri::async_runtime::spawn(async move {
                                     let mut last_sample_len = 0;
+                                    let mut last_onset_check_idx = 0;
                                     let mut last_text = String::new();
                                     let mut speech_detected_in_session = false;
                                     let silence_limit_samples =
@@ -272,15 +304,20 @@ pub fn spawn_actor() -> EngineHandle {
 
                                         let len = samples.len();
 
-                                        // Track speech onset across bounded windows so leading silence does not mask speech
-                                        if !speech_detected_in_session && len >= 4000 {
-                                            let check_window = &samples[len.saturating_sub(8000)..];
-                                            if voicekey_core::vad::EnergyVad::calculate_rms(
-                                                check_window,
-                                            ) > 0.002
-                                            {
-                                                speech_detected_in_session = true;
+                                        // Track speech onset across all unseen audio since last check
+                                        if !speech_detected_in_session && len > last_onset_check_idx
+                                        {
+                                            let unseen = &samples[last_onset_check_idx..];
+                                            for chunk in unseen.chunks(512) {
+                                                if voicekey_core::vad::EnergyVad::calculate_rms(
+                                                    chunk,
+                                                ) > 0.002
+                                                {
+                                                    speech_detected_in_session = true;
+                                                    break;
+                                                }
                                             }
+                                            last_onset_check_idx = len;
                                         }
 
                                         // Speculative inference if streaming is enabled, at least 500ms audio and 250ms since last check
@@ -569,28 +606,8 @@ pub fn spawn_actor() -> EngineHandle {
                         }
                     }
                 }
-                ActorCommand::Start => {
-                    if state == EngineState::Idle && !is_muted {
-                        info!("State transition: Idle -> Recording (Explicit Start)");
-                        let _ = actor_cmd_tx.send(ActorCommand::Toggle).await;
-                    }
-                }
-                ActorCommand::Stop => {
-                    if state == EngineState::Recording {
-                        // Re-trigger Toggle logic to complete transcription & auto-paste
-                        let _ = actor_cmd_tx.send(ActorCommand::Toggle).await;
-                    }
-                }
-                ActorCommand::AutoCommit(sid) => {
-                    if state == EngineState::Recording && sid == current_session_id {
-                        info!("Session {} auto-commit executing stop & paste.", sid);
-                        let _ = actor_cmd_tx.send(ActorCommand::Toggle).await;
-                    } else {
-                        info!(
-                            "AutoCommit ignored: received for retired session {} (current: {}, state: {:?})",
-                            sid, current_session_id, state
-                        );
-                    }
+                ActorCommand::Start | ActorCommand::Stop | ActorCommand::AutoCommit(_) => {
+                    // Pre-normalized to Toggle or skipped before dispatch
                 }
                 ActorCommand::Cancel => {
                     current_session_id = current_session_id.wrapping_add(1);
