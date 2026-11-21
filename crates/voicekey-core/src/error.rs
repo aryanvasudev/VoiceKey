@@ -11,6 +11,9 @@ pub enum CoreError {
     #[error("Whisper engine error: {0}")]
     Whisper(String),
 
+    #[error("LLM engine error: {0}")]
+    Llm(String),
+
     #[error("I/O error: {0}")]
     Io(#[from] std::io::Error),
 }
