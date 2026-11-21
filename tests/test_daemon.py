@@ -1,6 +1,7 @@
 """Integration tests for VoiceKeyDaemon state machine and IPC dispatch."""
 
 import asyncio
+import json
 from pathlib import Path
 import tempfile
 from unittest.mock import MagicMock
@@ -151,13 +152,14 @@ async def test_daemon_live_ipc_commands(mock_daemon: VoiceKeyDaemon, short_sock:
     assert toggle2["text"] == "Hello world from daemon"
     assert toggle2["action"] == "pasted"
 
-    # Unknown command
-    unknown = await loop.run_in_executor(
-        None,
-        lambda: send_daemon_command("invalid_action", socket_path=short_sock, timeout=2.0)
-    )
-    assert unknown["status"] == "error"
-    assert "Unknown command" in unknown["message"]
+    # Bare string command payload (Rust CLI compatibility)
+    reader, writer = await asyncio.open_unix_connection(str(short_sock))
+    writer.write(b'"ping"\n')
+    await writer.drain()
+    resp_line = await reader.readline()
+    writer.close()
+    await writer.wait_closed()
+    assert json.loads(resp_line.decode("utf-8")) == {"status": "ok", "pong": True}
 
     await mock_daemon._cleanup()
     assert not short_sock.exists()

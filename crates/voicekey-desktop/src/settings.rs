@@ -28,6 +28,20 @@ pub struct SettingsPayload {
     pub llm_model: String,
     #[serde(default = "default_llm_mode")]
     pub llm_transform_mode: String,
+    #[serde(default = "default_true")]
+    pub streaming_enabled: bool,
+    #[serde(default)]
+    pub auto_commit_silence: bool,
+    #[serde(default = "default_silence_timeout")]
+    pub silence_timeout_ms: u32,
+}
+
+fn default_true() -> bool {
+    true
+}
+
+fn default_silence_timeout() -> u32 {
+    800
 }
 
 fn default_llm_endpoint() -> String {
@@ -66,6 +80,9 @@ impl Default for SettingsPayload {
             llm_endpoint: default_llm_endpoint(),
             llm_model: default_llm_model(),
             llm_transform_mode: default_llm_mode(),
+            streaming_enabled: true,
+            auto_commit_silence: false,
+            silence_timeout_ms: 800,
         }
     }
 }
@@ -123,5 +140,8 @@ mod tests {
         assert!(!deserialized.llm_enabled);
         assert_eq!(deserialized.llm_model, "qwen2.5:0.5b");
         assert_eq!(deserialized.llm_endpoint, "http://127.0.0.1:11434");
+        assert!(deserialized.streaming_enabled);
+        assert!(!deserialized.auto_commit_silence);
+        assert_eq!(deserialized.silence_timeout_ms, 800);
     }
 }

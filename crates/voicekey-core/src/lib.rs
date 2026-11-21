@@ -15,7 +15,10 @@ pub use audio::{
     downmix_to_mono, read_wav, write_wav, AudioCaptureManager, AudioDeviceInfo, AudioRecorder,
     AudioRecorderConfig, AudioResampler, PreRollBuffer,
 };
-pub use engine::{TranscriptionResult, TranscriptionSegment, WhisperConfig, WhisperEngine};
+pub use engine::{
+    StreamingConfig, StreamingOutput, StreamingTranscriber, TranscriptionResult,
+    TranscriptionSegment, WhisperConfig, WhisperEngine,
+};
 pub use error::CoreError;
 pub use hotkey::{HotkeyEvent, HotkeyMode, HotkeyRouter};
 pub use input::{is_active_window_terminal, ClipboardManager, KeyInjector, KNOWN_TERMINAL_CLASSES};
@@ -25,7 +28,7 @@ pub use llm::{
     LlmClient, LlmConfig, LlmTransformMode, ParsedVoiceCommand,
 };
 pub use text::{apply_spoken_punctuation, normalize_text, process_transcription, VocabularyPrompt};
-pub use vad::{EnergyVad, VadConfig};
+pub use vad::{AdaptiveVad, AdaptiveVadConfig, EnergyVad, VadConfig, VadEvent};
 
 /// Result type alias for VoiceKey core operations.
 pub type Result<T> = std::result::Result<T, CoreError>;

@@ -129,7 +129,7 @@ impl Drop for HotkeyRouter {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, unix))]
 mod tests {
     use super::*;
     use crate::ipc::send_ipc_command_to;

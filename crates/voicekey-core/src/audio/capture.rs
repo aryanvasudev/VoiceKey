@@ -195,7 +195,7 @@ impl AudioRecorder {
 
         let is_rec = Arc::clone(&self.is_recording);
         let captured = Arc::clone(&self.captured_samples);
-        let _pre_roll = Arc::clone(&self.pre_roll_buffer);
+        let pre_roll = Arc::clone(&self.pre_roll_buffer);
         let rms_bits = Arc::clone(&self.rms_bits);
         let peak_bits = Arc::clone(&self.peak_bits);
 
@@ -210,6 +210,7 @@ impl AudioRecorder {
                 channels,
                 is_rec,
                 captured,
+                pre_roll,
                 rms_bits,
                 peak_bits,
                 err_fn,
@@ -220,6 +221,7 @@ impl AudioRecorder {
                 channels,
                 is_rec,
                 captured,
+                pre_roll,
                 rms_bits,
                 peak_bits,
                 err_fn,
@@ -230,6 +232,7 @@ impl AudioRecorder {
                 channels,
                 is_rec,
                 captured,
+                pre_roll,
                 rms_bits,
                 peak_bits,
                 err_fn,
@@ -256,6 +259,7 @@ impl AudioRecorder {
         channels: usize,
         is_rec: Arc<AtomicBool>,
         captured: Arc<Mutex<Vec<f32>>>,
+        pre_roll: Arc<Mutex<PreRollBuffer>>,
         rms_bits: Arc<AtomicU32>,
         peak_bits: Arc<AtomicU32>,
         err_fn: impl FnMut(cpal::Error) + Send + 'static,
@@ -268,10 +272,6 @@ impl AudioRecorder {
             .build_input_stream(
                 config.config(),
                 move |data: &[T], _: &cpal::InputCallbackInfo| {
-                    if !is_rec.load(Ordering::Relaxed) {
-                        return;
-                    }
-
                     // Convert raw samples to f32
                     let float_samples: Vec<f32> =
                         data.iter().map(|&s| f32::from_sample(s)).collect();
@@ -302,9 +302,16 @@ impl AudioRecorder {
                     rms_bits.store(rms.to_bits(), Ordering::Relaxed);
                     peak_bits.store(peak.to_bits(), Ordering::Relaxed);
 
-                    // Append to recording buffer
-                    if let Ok(mut buf) = captured.lock() {
-                        buf.extend_from_slice(&mono_samples);
+                    if is_rec.load(Ordering::Relaxed) {
+                        // Append to recording buffer
+                        if let Ok(mut buf) = captured.lock() {
+                            buf.extend_from_slice(&mono_samples);
+                        }
+                    } else {
+                        // Maintain circular pre-roll buffer while idling
+                        if let Ok(mut pre) = pre_roll.lock() {
+                            pre.push_samples(&mono_samples);
+                        }
                     }
                 },
                 err_fn,
@@ -331,8 +338,10 @@ impl AudioRecorder {
         };
 
         let pre_roll_samples = {
-            let pre = self.pre_roll_buffer.lock().unwrap();
-            pre.get_pre_roll()
+            let mut pre = self.pre_roll_buffer.lock().unwrap();
+            let samples = pre.get_pre_roll();
+            pre.clear();
+            samples
         };
 
         // Prepend pre-roll buffer
@@ -355,6 +364,30 @@ impl AudioRecorder {
         self.peak_bits.store(0, Ordering::Relaxed);
 
         Ok(final_16k)
+    }
+
+    /// Peek or clone the currently accumulated 16,000 Hz mono audio samples without stopping the stream.
+    pub fn peek_samples(&self) -> Result<Vec<f32>, CoreError> {
+        let raw = {
+            let buf = self.captured_samples.lock().unwrap();
+            buf.clone()
+        };
+
+        let pre = {
+            let pre_buf = self.pre_roll_buffer.lock().unwrap();
+            pre_buf.get_pre_roll()
+        };
+
+        let mut combined = pre;
+        combined.extend(raw);
+
+        if self.active_sample_rate != self.config.target_sample_rate && !combined.is_empty() {
+            let resampler =
+                AudioResampler::new(self.active_sample_rate, self.config.target_sample_rate)?;
+            resampler.resample(&combined)
+        } else {
+            Ok(combined)
+        }
     }
 
     /// Query the current RMS and peak volume amplitude levels.

@@ -212,6 +212,24 @@ A review of naive cross-platform assumptions revealed several critical edge case
   - `voicekey-cli transform` subcommand for headless scripting and tests.
   - `voicekey_transform_text` exported in `voicekey-android-ffi` for instant on-device formatting.
 
+### Phase 17: Low-Latency Streaming Transcription & Speculative Output
+- [x] Adaptive Voice Activity Detection (`voicekey-core::vad::AdaptiveVad`):
+  - State machine with silence hysteresis (`VadEvent`, `AdaptiveVadConfig`).
+  - Distinguishes speech onset, sustained voice, brief phoneme pauses, and completed utterances.
+- [x] Streaming Transcriber (`voicekey-core::engine::StreamingTranscriber`):
+  - Progressive sliding window (chunk step ~500ms, lookback ~10s).
+  - Emits `StreamingOutput::Partial` speculative text during recording.
+- [x] Non-destructive audio recording peeking:
+  - Added `AudioRecorder.peek_samples()` allowing real-time inspection without interrupting capture.
+- [x] Desktop UI & Overlay integration:
+  - Background async actor evaluates speculative inference and updates partial text watch channel.
+  - Tauri event `stream-partial-transcript` emits live transcription to overlay window.
+  - Live subtitle preview card `#streaming-preview` renders beneath floating pill.
+  - Dictation settings extended with toggles for streaming, adaptive VAD auto-commit, and silence timeout.
+- [x] CLI & Android integrations:
+  - `voicekey-cli stream` command for live terminal audio transcription.
+  - `voicekey_adaptive_vad_check_silence` exported in Android FFI.
+
 ---
 
 ## 4. Key Architectural Decisions Matrix

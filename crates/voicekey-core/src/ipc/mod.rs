@@ -1,10 +1,13 @@
 //! Cross-platform Unix Domain Socket and Local IPC system for instant hotkey triggers.
 
 use std::fs;
+#[cfg(unix)]
 use std::io::{BufRead, BufReader, Write};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+
+#[cfg(unix)]
 use std::thread;
 
 use crate::error::CoreError;
@@ -47,7 +50,19 @@ pub fn get_socket_path() -> PathBuf {
         return state_dir.join("voicekey").join("daemon.sock");
     }
 
-    PathBuf::from("/tmp/voicekey.sock")
+    #[cfg(unix)]
+    {
+        let uid = unsafe {
+            extern "C" {
+                fn getuid() -> u32;
+            }
+            getuid()
+        };
+        PathBuf::from(format!("/tmp/voicekey-{uid}.sock"))
+    }
+
+    #[cfg(not(unix))]
+    std::env::temp_dir().join("voicekey.sock")
 }
 
 /// Send an IPC command to a specific socket path on disk.
@@ -87,6 +102,7 @@ pub fn send_ipc_command_to<P: AsRef<std::path::Path>>(
 
     #[cfg(not(unix))]
     {
+        let _ = cmd;
         Err(CoreError::Audio(
             "IPC not supported on this platform yet".into(),
         ))
@@ -114,8 +130,13 @@ impl IpcServer {
         let socket_path = socket_path.as_ref().to_path_buf();
         if let Some(parent) = socket_path.parent() {
             fs::create_dir_all(parent)?;
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                let _ = fs::set_permissions(parent, fs::Permissions::from_mode(0o700));
+            }
         }
-        if socket_path.exists() {
+        if fs::symlink_metadata(&socket_path).is_ok() {
             let _ = fs::remove_file(&socket_path);
         }
 
@@ -123,8 +144,13 @@ impl IpcServer {
 
         #[cfg(unix)]
         {
+            use std::os::unix::fs::PermissionsExt;
+
             let listener = UnixListener::bind(&socket_path)
                 .map_err(|e| CoreError::Audio(format!("Failed to bind IPC socket: {e}")))?;
+
+            // Restrict socket file permissions strictly to current user
+            let _ = fs::set_permissions(&socket_path, fs::Permissions::from_mode(0o600));
 
             let is_running_clone = Arc::clone(&is_running);
             let handler = Arc::new(handler);
@@ -155,6 +181,9 @@ impl IpcServer {
             });
         }
 
+        #[cfg(not(unix))]
+        let _ = handler;
+
         Ok(Self {
             socket_path,
             is_running,
@@ -178,11 +207,15 @@ impl IpcServer {
 impl Drop for IpcServer {
     fn drop(&mut self) {
         self.is_running.store(false, Ordering::Relaxed);
+        #[cfg(unix)]
+        {
+            let _ = UnixStream::connect(&self.socket_path);
+        }
         let _ = fs::remove_file(&self.socket_path);
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, unix))]
 mod tests {
     use super::*;
 

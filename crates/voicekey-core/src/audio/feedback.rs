@@ -50,21 +50,16 @@ pub fn play_sound_cue(cue: SoundCue) {
 
         #[cfg(target_os = "windows")]
         {
+            use windows_sys::Win32::System::Diagnostics::Debug::Beep;
             let (freq, dur) = match cue {
                 SoundCue::Start => (880, 70),
                 SoundCue::Stop => (660, 70),
                 SoundCue::Complete => (1046, 100),
                 SoundCue::Error => (330, 150),
             };
-            let _ = std::process::Command::new("powershell")
-                .args([
-                    "-NoProfile",
-                    "-Command",
-                    &format!("[console]::beep({freq}, {dur})"),
-                ])
-                .stdout(std::process::Stdio::null())
-                .stderr(std::process::Stdio::null())
-                .status();
+            unsafe {
+                Beep(freq, dur);
+            }
         }
     });
 }

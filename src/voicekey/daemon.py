@@ -290,8 +290,15 @@ class VoiceKeyDaemon:
                 return
 
             req = json.loads(req_str)
-            cmd = req.get("command", "")
-            args = req.get("args", {})
+            if isinstance(req, str):
+                cmd = req
+                args = {}
+            elif isinstance(req, dict):
+                cmd = req.get("command", "")
+                args = req.get("args", {})
+            else:
+                cmd = str(req)
+                args = {}
 
             resp = await self.dispatch_command(cmd, args)
             writer.write((json.dumps(resp) + "\n").encode("utf-8"))

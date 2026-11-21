@@ -51,24 +51,37 @@ jobs:
             libssl-dev \
             librsvg2-dev
 
+      - name: Set up MSVC Developer Command Prompt
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Install LLVM and Clang
+        if: runner.os == 'Windows'
+        uses: KyleMayes/install-llvm-action@v2
+        with:
+          version: "18.1.8"
+
       - name: Configure Windows LLVM / libclang
         if: runner.os == 'Windows'
         run: |
-          if (Get-Command clang -ErrorAction SilentlyContinue) {
-            $clangDir = Split-Path -Parent (Get-Command clang).Source
-            echo "LIBCLANG_PATH=$clangDir" >> $env:GITHUB_ENV
-            echo "$clangDir" >> $env:GITHUB_PATH
-          } else {
-            $llvmPath = "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Tools\Llvm\x64\bin"
-            echo "LIBCLANG_PATH=$llvmPath" >> $env:GITHUB_ENV
-            echo "$llvmPath" >> $env:GITHUB_PATH
-          }
+          echo "LIBCLANG_PATH=$env:LLVM_PATH\bin" >> $env:GITHUB_ENV
+          echo "$env:LLVM_PATH\bin" >> $env:GITHUB_PATH
+
+          # Strip MinGW and Strawberry Perl from PATH to prevent GNU headers leakage in bindgen
+          $filteredPath = ($env:PATH -split ';' | Where-Object { $_ -notmatch 'mingw|strawberry' }) -join ';'
+          echo "PATH=$filteredPath" >> $env:GITHUB_ENV
+
+          # Forward MSVC/Windows SDK include directories to bindgen via BINDGEN_EXTRA_CLANG_ARGS
+          $extraArgs = ($env:INCLUDE -split ';' | Where-Object { $_ -ne '' } | ForEach-Object { "-I`"$_`"" }) -join ' '
+          "BINDGEN_EXTRA_CLANG_ARGS=$extraArgs" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
 
       - name: Verify code formatting
         run: cargo fmt --all -- --check
 
       - name: Check workspace
-        run: cargo check --workspace --all-targets
+        run: cargo check --workspace --all-targets -vv
 
       - name: Run Clippy linter
         run: cargo clippy --workspace --all-targets -- -D warnings

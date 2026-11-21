@@ -7,7 +7,7 @@ mod settings;
 mod state;
 mod tray;
 
-use tauri::Manager;
+use tauri::{Emitter, Manager};
 use tracing::{error, info};
 
 use crate::state::spawn_actor;
@@ -91,6 +91,7 @@ fn main() {
             tauri::async_runtime::spawn(async move {
                 while state_rx.changed().await.is_ok() {
                     let cur_state = *state_rx.borrow();
+                    let _ = app_handle_for_state_watcher.emit("engine-state-changed", format!("{cur_state:?}").to_lowercase());
                     if let Some(win) = app_handle_for_state_watcher.get_webview_window("overlay") {
                         match cur_state {
                             crate::state::EngineState::Recording
@@ -118,6 +119,16 @@ fn main() {
                             }
                         }
                     }
+                }
+            });
+
+            // Background watcher for partial streaming transcripts
+            let app_handle_for_partial = app.handle().clone();
+            let mut partial_rx = engine_for_setup.subscribe_partial_text();
+            tauri::async_runtime::spawn(async move {
+                while partial_rx.changed().await.is_ok() {
+                    let text = partial_rx.borrow().clone();
+                    let _ = app_handle_for_partial.emit("stream-partial-transcript", text);
                 }
             });
 

@@ -147,6 +147,33 @@ enum Commands {
         #[arg(long, default_value = "qwen2.5:0.5b")]
         model: String,
     },
+
+    /// Low-latency real-time streaming transcription & speculative output test
+    Stream {
+        /// Recording duration in seconds. If omitted, press Enter to stop.
+        #[arg(short, long)]
+        duration: Option<f64>,
+
+        /// Path to the GGML Whisper model or preset name (tiny.en, base.en, small.en)
+        #[arg(short, long, default_value = "base.en")]
+        model: String,
+
+        /// Name of the input audio device
+        #[arg(long)]
+        device: Option<String>,
+
+        /// Enable VAD silence hysteresis auto-commit (stops automatically after silence)
+        #[arg(long)]
+        auto_commit: bool,
+
+        /// Silence timeout in milliseconds before auto-commit (default: 800ms)
+        #[arg(long, default_value_t = 800)]
+        silence_ms: u32,
+
+        /// Initial prompt for vocabulary biasing
+        #[arg(short, long)]
+        prompt: Option<String>,
+    },
 }
 
 fn main() -> Result<()> {
@@ -192,6 +219,14 @@ fn main() -> Result<()> {
             endpoint,
             model,
         } => handle_transform(text, mode, endpoint, model)?,
+        Commands::Stream {
+            duration,
+            model,
+            device,
+            auto_commit,
+            silence_ms,
+            prompt,
+        } => handle_stream(duration, model, device, auto_commit, silence_ms, prompt)?,
     }
 
     Ok(())
@@ -788,5 +823,202 @@ fn handle_transform(text: String, mode: String, endpoint: String, model: String)
 
     println!("\n{}", "Result:".bold().green());
     println!("{}", output);
+    Ok(())
+}
+
+#[allow(clippy::chunks_exact_to_as_chunks)]
+fn handle_stream(
+    duration: Option<f64>,
+    model: String,
+    device: Option<String>,
+    auto_commit: bool,
+    silence_ms: u32,
+    prompt: Option<String>,
+) -> Result<()> {
+    println!(
+        "{}",
+        "=== VoiceKey Streaming Transcription & Speculative Output ==="
+            .bold()
+            .cyan()
+    );
+
+    let model_path = resolve_model_path(&model)?;
+    println!("Model: {}", model_path.display().to_string().bold());
+    println!(
+        "Audio Input: {}",
+        device.as_deref().unwrap_or("System Default")
+    );
+    println!(
+        "Auto-Commit on Silence: {}",
+        if auto_commit {
+            format!("Enabled ({}ms hysteresis)", silence_ms).green()
+        } else {
+            "Disabled (manual stop)".yellow()
+        }
+    );
+
+    let whisper_cfg = WhisperConfig {
+        model_path,
+        language: Some("en".into()),
+        threads: 4,
+        temperature: 0.0,
+        translate: false,
+        initial_prompt: prompt.clone(),
+        enable_normalization: true,
+        enable_spoken_punctuation: true,
+    };
+
+    let engine = Arc::new(WhisperEngine::load_from_file(whisper_cfg)?);
+
+    let silence_frames = (silence_ms / 32).max(5) as usize;
+    let vad_cfg = voicekey_core::vad::AdaptiveVadConfig {
+        frame_size: 512,
+        speech_start_threshold: 0.002,
+        speech_hold_threshold: 0.0008,
+        min_speech_frames: 3,
+        silence_hysteresis_frames: silence_frames,
+        sample_rate: 16000,
+    };
+
+    let stream_cfg = voicekey_core::engine::StreamingConfig {
+        chunk_step_samples: 8000, // 500ms
+        min_samples_for_inference: 8000,
+        max_lookback_samples: 160000,
+        vad_config: vad_cfg,
+    };
+
+    let mut transcriber =
+        voicekey_core::engine::StreamingTranscriber::new(engine, stream_cfg, prompt);
+
+    let rec_cfg = AudioRecorderConfig {
+        device_name: device,
+        pre_roll_ms: 200,
+        target_sample_rate: 16000,
+    };
+    let mut recorder = AudioRecorder::new(rec_cfg);
+    recorder.start()?;
+
+    println!(
+        "\n{}",
+        "Speak into your microphone. Real-time speculative text streams below:".italic()
+    );
+    if duration.is_none() {
+        println!(
+            "{}",
+            "(Press Enter to stop and commit final output)".dimmed()
+        );
+    }
+
+    let running = Arc::new(AtomicBool::new(true));
+    let r = running.clone();
+
+    // Spawn non-blocking Enter key listener whenever duration is None
+    if duration.is_none() {
+        std::thread::spawn(move || {
+            let mut line = String::new();
+            if let Ok(n) = io::stdin().read_line(&mut line) {
+                if n > 0 {
+                    r.store(false, Ordering::SeqCst);
+                }
+            }
+        });
+    }
+
+    let start_time = Instant::now();
+    let mut last_sample_count = 0;
+    let mut completed_transcripts: Vec<String> = Vec::new();
+
+    while running.load(Ordering::SeqCst) {
+        if let Some(d) = duration {
+            if start_time.elapsed().as_secs_f64() >= d {
+                break;
+            }
+        }
+
+        std::thread::sleep(Duration::from_millis(50));
+
+        if let Ok(samples) = recorder.peek_samples() {
+            if samples.len() > last_sample_count {
+                let available = &samples[last_sample_count..];
+                let full_frames_samples = (available.len() / 512) * 512;
+                if full_frames_samples > 0 {
+                    let to_process = &available[..full_frames_samples];
+                    for frame in to_process.chunks_exact(512) {
+                        match transcriber.feed_frame(frame) {
+                            Ok(voicekey_core::engine::StreamingOutput::Partial {
+                                text, ..
+                            }) => {
+                                print!("\r\x1b[2K{} {}", "[LIVE]".bold().green(), text);
+                                let _ = io::stdout().flush();
+                            }
+                            Ok(voicekey_core::engine::StreamingOutput::Final { result }) => {
+                                println!(
+                                    "\n{} {}",
+                                    "[UTTERANCE COMPLETE]".bold().cyan(),
+                                    result.text
+                                );
+                                if !result.text.trim().is_empty() {
+                                    completed_transcripts.push(result.text);
+                                }
+                                if auto_commit {
+                                    running.store(false, Ordering::SeqCst);
+                                    break;
+                                }
+                            }
+                            Ok(voicekey_core::engine::StreamingOutput::None) => {}
+                            Err(e) => {
+                                eprintln!("\nStreaming error: {}", e);
+                                if auto_commit {
+                                    running.store(false, Ordering::SeqCst);
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    last_sample_count += full_frames_samples;
+                }
+            }
+        }
+    }
+
+    // Stop recorder and consume any remaining audio suffix exactly once
+    let final_samples = recorder.stop().unwrap_or_default();
+    if final_samples.len() > last_sample_count {
+        let suffix = &final_samples[last_sample_count..];
+        for frame in suffix.chunks_exact(512) {
+            if let voicekey_core::engine::StreamingOutput::Final { result } =
+                transcriber.feed_frame(frame)?
+            {
+                if !result.text.trim().is_empty() {
+                    completed_transcripts.push(result.text);
+                }
+            }
+        }
+        let rem = suffix.len() % 512;
+        if rem > 0 {
+            let short_frame = &suffix[suffix.len() - rem..];
+            if let voicekey_core::engine::StreamingOutput::Final { result } =
+                transcriber.feed_frame(short_frame)?
+            {
+                if !result.text.trim().is_empty() {
+                    completed_transcripts.push(result.text);
+                }
+            }
+        }
+    }
+
+    let final_res = transcriber.finish()?;
+    if !final_res.text.trim().is_empty() {
+        completed_transcripts.push(final_res.text);
+    }
+
+    let full_transcript = completed_transcripts.join(" ");
+
+    println!(
+        "\n\n{}",
+        "=== Final Streaming Transcript ===".bold().green()
+    );
+    println!("{}", full_transcript.trim());
+
     Ok(())
 }

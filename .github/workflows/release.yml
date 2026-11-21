@@ -112,3 +112,41 @@ jobs:
           files: release-dist/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build-android:
+    name: Build Android Release (AAR & APK)
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android, x86_64-linux-android
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: "temurin"
+          java-version: "17"
+
+      - name: Package Android AAR and APK
+        shell: bash
+        run: |
+          mkdir -p release-dist
+          bash scripts/package_android_aar.sh
+          bash scripts/package_android_apk.sh
+          cp target/voicekey-core.aar release-dist/
+          cp target/voicekey-app-release.apk release-dist/
+          cd release-dist
+          sha256sum * > SHA256SUMS-android.txt
+
+      - name: Upload Android Artifacts to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release-dist/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
