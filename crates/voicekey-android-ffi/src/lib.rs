@@ -256,6 +256,29 @@ pub fn voicekey_spoken_punctuation(text: String) -> String {
     core_apply_spoken_punct(&text)
 }
 
+/// Smart micro-LLM / rule-based transformation for Android.
+///
+/// Modes:
+/// 0: Auto (fast-path unless spoken command prefix like "VoiceKey bullets:" is detected)
+/// 1: Clean transcript (strip filler words & stutters)
+/// 2: Bullet points
+/// 3: Professional tone
+/// 4: Casual tone
+/// 5: Voice to code
+#[uniffi::export]
+pub fn voicekey_transform_text(text: String, mode: i32) -> String {
+    let forced_mode = match mode {
+        1 => Some(voicekey_core::llm::LlmTransformMode::CleanTranscript),
+        2 => Some(voicekey_core::llm::LlmTransformMode::BulletPoints),
+        3 => Some(voicekey_core::llm::LlmTransformMode::ProfessionalTone),
+        4 => Some(voicekey_core::llm::LlmTransformMode::CasualTone),
+        5 => Some(voicekey_core::llm::LlmTransformMode::VoiceToCode),
+        _ => None,
+    };
+
+    voicekey_core::llm::process_with_llm(&text, forced_mode, None).unwrap_or(text)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -276,6 +299,13 @@ mod tests {
 
         let punct = voicekey_spoken_punctuation("one comma two".to_string());
         assert_eq!(punct, "one, two");
+
+        let bullets = voicekey_transform_text(
+            "VoiceKey bullets: item one and then item two".to_string(),
+            0,
+        );
+        assert!(bullets.contains("- Item one"));
+        assert!(bullets.contains("- Item two"));
     }
 
     #[test]

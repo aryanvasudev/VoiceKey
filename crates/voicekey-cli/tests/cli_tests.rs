@@ -176,3 +176,39 @@ fn test_cli_paste_command() {
     assert!(stdout.contains("Active Window Target:"));
     assert!(stdout.contains("Payload Size: 17 characters"));
 }
+
+#[test]
+fn test_cli_transform_command() {
+    let bin = get_cli_bin();
+
+    // 1. Spoken directive test
+    let output = Command::new(&bin)
+        .args([
+            "transform",
+            "VoiceKey bullets: buy milk and then buy bread and then buy eggs",
+        ])
+        .output()
+        .expect("Failed to execute voicekey-cli transform");
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("Micro-LLM Smart Dictation Transform"));
+    assert!(stdout.contains("- Buy milk"));
+    assert!(stdout.contains("- Buy bread"));
+    assert!(stdout.contains("- Buy eggs"));
+
+    // 2. Explicit clean mode test
+    let clean_output = Command::new(&bin)
+        .args([
+            "transform",
+            "I was um thinking that uh maybe we should go",
+            "--mode",
+            "clean",
+        ])
+        .output()
+        .expect("Failed to execute voicekey-cli transform clean");
+
+    assert!(clean_output.status.success());
+    let clean_stdout = String::from_utf8_lossy(&clean_output.stdout);
+    assert!(clean_stdout.contains("I was thinking that maybe we should go"));
+}

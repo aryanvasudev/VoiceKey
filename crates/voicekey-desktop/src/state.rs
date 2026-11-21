@@ -339,12 +339,60 @@ pub fn spawn_actor() -> EngineHandle {
                                     voicekey_core::audio::SoundCue::Complete,
                                 );
 
-                                let text_to_paste = result.text.clone();
+                                // Load current user settings for debounce delay & LLM configuration
+                                let current_settings = crate::settings::load_settings();
+
+                                // Smart LLM Post-Processing (0ms fast path if disabled and no spoken command keyword)
+                                let text_to_transform = result.text.clone();
+                                let settings_clone = current_settings.clone();
+                                let text_to_paste = tokio::task::spawn_blocking(move || {
+                                    let forced_mode = if settings_clone.llm_enabled {
+                                        match settings_clone.llm_transform_mode.as_str() {
+                                            "bullets" => Some(voicekey_core::llm::LlmTransformMode::BulletPoints),
+                                            "clean" => Some(voicekey_core::llm::LlmTransformMode::CleanTranscript),
+                                            "professional" => Some(voicekey_core::llm::LlmTransformMode::ProfessionalTone),
+                                            "casual" => Some(voicekey_core::llm::LlmTransformMode::CasualTone),
+                                            "code" => Some(voicekey_core::llm::LlmTransformMode::VoiceToCode),
+                                            _ => None,
+                                        }
+                                    } else {
+                                        None
+                                    };
+
+                                    let client = if settings_clone.llm_enabled
+                                        || voicekey_core::llm::parse_spoken_command(&text_to_transform).is_some()
+                                    {
+                                        let cfg = voicekey_core::llm::LlmConfig {
+                                            enabled: settings_clone.llm_enabled,
+                                            endpoint: settings_clone.llm_endpoint,
+                                            model: settings_clone.llm_model,
+                                            api_type: voicekey_core::llm::LlmApiType::OpenAiCompatible,
+                                            timeout_ms: 2000,
+                                            temperature: 0.1,
+                                            max_tokens: 256,
+                                        };
+                                        Some(voicekey_core::llm::HttpLlmClient::new(cfg))
+                                    } else {
+                                        None
+                                    };
+
+                                    voicekey_core::llm::process_with_llm(
+                                        &text_to_transform,
+                                        forced_mode,
+                                        client.as_ref().map(|c| c as &dyn voicekey_core::llm::LlmClient),
+                                    )
+                                    .unwrap_or(text_to_transform)
+                                })
+                                .await
+                                .unwrap_or_else(|_| result.text.clone());
+
+                                let paste_text = text_to_paste.clone();
+                                let delay_ms = current_settings.clipboard_delay_ms;
                                 let paste_res = tokio::task::spawn_blocking(move || {
                                     ClipboardManager::paste_and_restore(
-                                        &text_to_paste,
+                                        &paste_text,
                                         false, // Keep transcribed text in clipboard
-                                        250,
+                                        delay_ms,
                                     )
                                 })
                                 .await;

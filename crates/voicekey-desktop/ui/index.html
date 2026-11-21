@@ -580,6 +580,7 @@
         <div class="nav-item" data-tab="audio">Audio & Input</div>
         <div class="nav-item" data-tab="dictation">Dictation</div>
         <div class="nav-item" data-tab="vocabulary">Vocabulary</div>
+        <div class="nav-item" data-tab="ai">Smart AI & LLM</div>
       </div>
 
       <!-- Content Views -->
@@ -683,6 +684,59 @@
               <input type="text" id="new-tag-input" placeholder="Enter term (e.g., Kubernetes, PyTorch, GraphQL)">
               <button class="btn btn-secondary" id="btn-add-tag">Add Term</button>
             </div>
+          </div>
+        </div>
+
+        <!-- TAB 5: SMART AI & LLM -->
+        <div class="tab-section" id="tab-ai">
+          <h2 class="section-title">Micro-LLM Smart Dictation</h2>
+          <p class="section-desc">Zero-latency fast path by default. When enabled, locally transforms speech into bullet points, formatted code, or professional messages using Ollama or local LLM engines.</p>
+
+          <div class="setting-card">
+            <div class="toggle-row">
+              <div>
+                <h3>Enable Micro-LLM Post-Processing</h3>
+                <p>When enabled, runs local LLM transformations. Spoken commands (e.g. <code>"VoiceKey bullets: ..."</code>) are always supported even offline via fallback rules.</p>
+              </div>
+              <label class="switch">
+                <input type="checkbox" id="check-llm-enabled">
+                <span class="slider"></span>
+              </label>
+            </div>
+          </div>
+
+          <div class="setting-card">
+            <h3>Recommended Micro-LLM Model</h3>
+            <p>Select which quantized local model to target for post-processing inference:</p>
+            <select id="llm-model-select">
+              <option value="qwen2.5:0.5b">Qwen 2.5 0.5B (~380 MB RAM, 80-120 tok/s) - Recommended for speed</option>
+              <option value="llama3.2:1b">Llama 3.2 1B (~750 MB RAM, 50-80 tok/s) - Balanced for natural text</option>
+              <option value="qwen2.5:1.5b">Qwen 2.5 1.5B (~1.1 GB RAM, 35-60 tok/s) - Superior reasoning</option>
+              <option value="custom">Custom Endpoint / Ollama Model</option>
+            </select>
+          </div>
+
+          <div class="setting-card">
+            <h3>Local API Endpoint</h3>
+            <p>Ollama (<code>http://127.0.0.1:11434</code>), llama.cpp server (<code>http://127.0.0.1:8080</code>), or OpenAI-compatible server:</p>
+            <div style="display: flex; gap: 8px; margin-top: 8px;">
+              <input type="text" id="input-llm-endpoint" value="http://127.0.0.1:11434" style="flex: 1;">
+              <button class="btn btn-secondary" id="btn-test-llm">Test Connection</button>
+            </div>
+            <div id="llm-connection-status" style="margin-top: 8px; font-size: 13px; color: var(--text-muted);">Status: Ready</div>
+          </div>
+
+          <div class="setting-card">
+            <h3>Default Transformation Behavior</h3>
+            <p>How text should be processed when LLM is active:</p>
+            <select id="llm-mode-select">
+              <option value="auto">Auto (Pure Whisper fast path unless "VoiceKey bullets/clean/code:" is spoken)</option>
+              <option value="clean">Clean Transcript (Strip filler words, stutters, false starts)</option>
+              <option value="bullets">Bullet Points List (Format thoughts into clean markdown bullets)</option>
+              <option value="professional">Professional Workplace (Polite formal communication)</option>
+              <option value="casual">Casual Chat (Friendly conversational chat)</option>
+              <option value="code">Voice to Code (Translate spoken programming into syntax)</option>
+            </select>
           </div>
         </div>
 
@@ -923,6 +977,10 @@
           document.getElementById("check-autostart").checked = settings.launch_at_startup;
           document.getElementById("input-delay-ms").value = settings.clipboard_delay_ms;
           document.getElementById("hotkey-mode-select").value = settings.hotkey_mode;
+          document.getElementById("check-llm-enabled").checked = !!settings.llm_enabled;
+          document.getElementById("input-llm-endpoint").value = settings.llm_endpoint || "http://127.0.0.1:11434";
+          document.getElementById("llm-model-select").value = settings.llm_model || "qwen2.5:0.5b";
+          document.getElementById("llm-mode-select").value = settings.llm_transform_mode || "auto";
           renderVocabularyTags();
         }
 
@@ -1068,12 +1126,36 @@
       currentSettings.clipboard_preserve = document.getElementById("check-clipboard-preserve").checked;
       currentSettings.launch_at_startup = document.getElementById("check-autostart").checked;
       currentSettings.clipboard_delay_ms = parseInt(document.getElementById("input-delay-ms").value) || 250;
+      currentSettings.llm_enabled = document.getElementById("check-llm-enabled").checked;
+      currentSettings.llm_endpoint = document.getElementById("input-llm-endpoint").value.trim() || "http://127.0.0.1:11434";
+      currentSettings.llm_model = document.getElementById("llm-model-select").value;
+      currentSettings.llm_transform_mode = document.getElementById("llm-mode-select").value;
 
       try {
         await invoke("save_settings_cmd", { settings: currentSettings });
         showToast("Settings saved and applied successfully!");
       } catch (e) {
         alert("Failed to save settings: " + e);
+      }
+    });
+
+    document.getElementById("btn-test-llm").addEventListener("click", async () => {
+      const endpoint = document.getElementById("input-llm-endpoint").value.trim() || "http://127.0.0.1:11434";
+      const statusEl = document.getElementById("llm-connection-status");
+      statusEl.innerText = "Testing connection to " + endpoint + "...";
+      statusEl.style.color = "var(--text-muted)";
+      try {
+        const ok = await invoke("test_llm_connection", { endpoint });
+        if (ok) {
+          statusEl.innerText = "✓ Connected to local LLM server successfully!";
+          statusEl.style.color = "#34d399";
+        } else {
+          statusEl.innerText = "⚠ Server check returned non-200. VoiceKey will use offline fallback rules if needed.";
+          statusEl.style.color = "#f59e0b";
+        }
+      } catch (err) {
+        statusEl.innerText = "⚠ Cannot reach " + endpoint + " (" + err + "). Offline fallback rules active.";
+        statusEl.style.color = "#f87171";
       }
     });
 
