@@ -15,3 +15,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "voicekey-android"
 include(":voicekey-core")
+include(":app")

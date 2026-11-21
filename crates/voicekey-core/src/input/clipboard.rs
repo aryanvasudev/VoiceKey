@@ -40,14 +40,23 @@ impl ClipboardManager {
                 }
             }
 
-            // Wayland fallback via wl-paste
+            // Wayland fallback via wl-paste with short timeout
             #[cfg(target_os = "linux")]
             {
                 if std::env::var_os("WAYLAND_DISPLAY").is_some() {
-                    if let Ok(output) = std::process::Command::new("wl-paste")
-                        .args(["--no-newline"])
-                        .output()
+                    let cmd_result = if std::path::Path::new("/usr/bin/timeout").exists()
+                        || std::path::Path::new("/bin/timeout").exists()
                     {
+                        std::process::Command::new("timeout")
+                            .args(["300ms", "wl-paste", "--no-newline"])
+                            .output()
+                    } else {
+                        std::process::Command::new("wl-paste")
+                            .args(["--no-newline"])
+                            .output()
+                    };
+
+                    if let Ok(output) = cmd_result {
                         if output.status.success() {
                             return Ok(String::from_utf8_lossy(&output.stdout).to_string());
                         }
@@ -84,7 +93,11 @@ impl ClipboardManager {
                 }
             }
 
-            // On Linux Wayland, also use wl-copy to guarantee compositor persistence
+            if arboard_ok {
+                return Ok(());
+            }
+
+            // On Linux Wayland, fallback to wl-copy only if arboard could not access clipboard
             #[cfg(target_os = "linux")]
             {
                 if std::env::var_os("WAYLAND_DISPLAY").is_some() {
@@ -98,22 +111,15 @@ impl ClipboardManager {
                         if let Some(mut stdin) = child.stdin.take() {
                             let _ = stdin.write_all(text.as_bytes());
                         }
-                        if let Ok(status) = child.wait() {
-                            if status.success() {
-                                return Ok(());
-                            }
-                        }
+                        // Do not block indefinitely on wl-copy which serves clipboard content
+                        return Ok(());
                     }
                 }
             }
 
-            if arboard_ok {
-                Ok(())
-            } else {
-                Err(CoreError::Audio(
-                    "Failed to write to system clipboard".into(),
-                ))
-            }
+            Err(CoreError::Audio(
+                "Failed to write to system clipboard".into(),
+            ))
         }
     }
 
