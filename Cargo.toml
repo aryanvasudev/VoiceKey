@@ -1,5 +1,6 @@
 [workspace]
 members = [
     "crates/voicekey-core",
+    "crates/voicekey-cli",
 ]
 resolver = "2"

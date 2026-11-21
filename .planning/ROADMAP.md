@@ -37,7 +37,7 @@ Detailed technical specifications and loophole mitigations are documented in [.p
   - Quantized GGML Whisper inference via `whisper-rs` (`whisper.cpp` engine).
   - VAD (energy gating and silence trimming), custom vocabulary biasing, and text post-processing.
   - Parity test suite against Python v1 baseline outputs.
-- [ ] **Phase 8: Headless CLI & Cross-Platform Audio Capture**
+- [x] **Phase 8: Headless CLI & Cross-Platform Audio Capture**
   - Standalone headless verification tool (`voicekey-cli`).
   - Audio capture via `cpal` (WASAPI on Windows, PipeWire/ALSA on Linux) with dynamic device reconnection.
 - [ ] **Phase 9: Cross-Platform Input Injection & 3-Tier Hotkeys**

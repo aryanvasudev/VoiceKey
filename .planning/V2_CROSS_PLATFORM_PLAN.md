@@ -112,12 +112,12 @@ A review of naive cross-platform assumptions revealed several critical edge case
 - [ ] Unit & benchmark test suite comparing outputs against the Python v1 baseline.
 
 ### Phase 2: Headless CLI & Cross-Platform Audio Capture
-- [ ] Build `crates/voicekey-cli` for standalone verification without GUI.
-- [ ] Audio capture pipeline using `cpal`:
+- [x] Build `crates/voicekey-cli` for standalone verification without GUI.
+- [x] Audio capture pipeline using `cpal`:
   - Linux: PipeWire / PulseAudio / ALSA.
   - Windows: WASAPI stream.
   - Dynamic device reconnect listener (handling mic unplug/replug).
-- [ ] End-to-end headless CLI commands:
+- [x] End-to-end headless CLI commands:
   - `voicekey-cli record --duration 5 --output test.wav`
   - `voicekey-cli transcribe test.wav --model base.en`
 
