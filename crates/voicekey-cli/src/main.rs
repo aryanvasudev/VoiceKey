@@ -986,8 +986,8 @@ fn handle_stream(
     if final_samples.len() > last_sample_count {
         let suffix = &final_samples[last_sample_count..];
         for frame in suffix.chunks_exact(512) {
-            if let Ok(voicekey_core::engine::StreamingOutput::Final { result }) =
-                transcriber.feed_frame(frame)
+            if let voicekey_core::engine::StreamingOutput::Final { result } =
+                transcriber.feed_frame(frame)?
             {
                 if !result.text.trim().is_empty() {
                     completed_transcripts.push(result.text);
@@ -997,8 +997,8 @@ fn handle_stream(
         let rem = suffix.len() % 512;
         if rem > 0 {
             let short_frame = &suffix[suffix.len() - rem..];
-            if let Ok(voicekey_core::engine::StreamingOutput::Final { result }) =
-                transcriber.feed_frame(short_frame)
+            if let voicekey_core::engine::StreamingOutput::Final { result } =
+                transcriber.feed_frame(short_frame)?
             {
                 if !result.text.trim().is_empty() {
                     completed_transcripts.push(result.text);
