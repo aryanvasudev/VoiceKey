@@ -32,7 +32,7 @@
 
 Detailed technical specifications and loophole mitigations are documented in [.planning/V2_CROSS_PLATFORM_PLAN.md](file:///home/aryan/Documents/Projects/VoiceKey/.planning/V2_CROSS_PLATFORM_PLAN.md).
 
-- [ ] **Phase 7: Shared Rust Engine (`voicekey-core`)**
+- [x] **Phase 7: Shared Rust Engine (`voicekey-core`)**
   - Audio pipeline: `rubato` 16kHz resampling, stereo-to-mono downmixing, circular buffer with 200ms pre-roll.
   - Quantized GGML Whisper inference via `whisper-rs` (`whisper.cpp` engine).
   - VAD (energy gating and silence trimming), custom vocabulary biasing, and text post-processing.

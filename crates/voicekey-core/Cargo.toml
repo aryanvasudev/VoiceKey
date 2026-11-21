@@ -1,0 +1,19 @@
+[package]
+name = "voicekey-core"
+version = "0.2.0"
+edition = "2021"
+description = "Core high-performance audio DSP, VAD, Whisper inference, and text processing engine for VoiceKey"
+authors = ["Aryan"]
+license = "MIT"
+
+[dependencies]
+rubato = "0.16"
+whisper-rs = { version = "0.16", default-features = false }
+thiserror = "2.0"
+regex = "1.11"
+tracing = "0.1"
+
+[dev-dependencies]
+approx = "0.5"
+hound = "3.5"
+tempfile = "3.14"
