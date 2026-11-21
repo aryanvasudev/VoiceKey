@@ -17,7 +17,6 @@ concurrency:
 
 env:
   CARGO_TERM_COLOR: always
-  WHISPER_DONT_GENERATE_BINDINGS: "1"
 
 jobs:
   test:
@@ -52,6 +51,12 @@ jobs:
             libssl-dev \
             librsvg2-dev
 
+      - name: Set up MSVC Developer Command Prompt
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
       - name: Configure Windows LLVM / libclang
         if: runner.os == 'Windows'
         run: |
@@ -64,6 +69,13 @@ jobs:
             echo "LIBCLANG_PATH=$llvmPath" >> $env:GITHUB_ENV
             echo "$llvmPath" >> $env:GITHUB_PATH
           }
+          # Strip MinGW and Strawberry Perl from PATH to prevent GNU headers leakage in bindgen
+          $filteredPath = ($env:PATH -split ';' | Where-Object { $_ -notmatch 'mingw|strawberry' }) -join ';'
+          echo "PATH=$filteredPath" >> $env:GITHUB_ENV
+
+          # Forward MSVC/Windows SDK include directories to bindgen via BINDGEN_EXTRA_CLANG_ARGS
+          $extraArgs = ($env:INCLUDE -split ';' | Where-Object { $_ -ne '' } | ForEach-Object { "-I`"$_`"" }) -join ' '
+          "BINDGEN_EXTRA_CLANG_ARGS=$extraArgs" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
 
       - name: Verify code formatting
         run: cargo fmt --all -- --check
