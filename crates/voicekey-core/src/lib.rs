@@ -1,5 +1,5 @@
 //! `voicekey-core`: High-performance cross-platform audio DSP, VAD, Whisper inference,
-//! and text post-processing engine for VoiceKey.
+//! audio capture, and text post-processing engine for VoiceKey.
 
 pub mod audio;
 pub mod engine;
@@ -7,7 +7,10 @@ pub mod error;
 pub mod text;
 pub mod vad;
 
-pub use audio::{downmix_to_mono, AudioResampler, PreRollBuffer};
+pub use audio::{
+    downmix_to_mono, read_wav, write_wav, AudioCaptureManager, AudioDeviceInfo, AudioRecorder,
+    AudioRecorderConfig, AudioResampler, PreRollBuffer,
+};
 pub use engine::{TranscriptionResult, TranscriptionSegment, WhisperConfig, WhisperEngine};
 pub use error::CoreError;
 pub use text::{

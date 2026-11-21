@@ -12,8 +12,10 @@ whisper-rs = { version = "0.16", default-features = false }
 thiserror = "2.0"
 regex = "1.11"
 tracing = "0.1"
+cpal = "0.18"
+hound = "3.5"
 
 [dev-dependencies]
 approx = "0.5"
-hound = "3.5"
 tempfile = "3.14"
+
