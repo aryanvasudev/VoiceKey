@@ -4,7 +4,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Platforms: Linux & Windows](https://img.shields.io/badge/platform-Linux%20%7C%20Windows-blue.svg)](https://github.com/aryanvasudev/VoiceKey)
 [![CI](https://github.com/aryanvasudev/VoiceKey/actions/workflows/ci.yml/badge.svg)](https://github.com/aryanvasudev/VoiceKey/actions/workflows/ci.yml)
-[![Tests Passing](https://img.shields.io/badge/tests-52%20passing-brightgreen.svg)](https://github.com/aryanvasudev/VoiceKey)
+[![Tests Passing](https://img.shields.io/badge/tests-58%20passing-brightgreen.svg)](https://github.com/aryanvasudev/VoiceKey)
 
 > **Blazing fast, 100% offline voice dictation with kernel-level auto-paste for Linux and Windows.**
 
@@ -231,7 +231,8 @@ VoiceKey/
 ├── .github/workflows/        # CI test matrix & tagged release builder
 │   ├── ci.yml                # Linux, Windows & Android FFI test matrix
 │   └── release.yml           # Automated release asset packaging & publishing
-├── android/                  # Android Gradle library project
+├── android/                  # Android Gradle project
+│   ├── app/                  # VoiceKey IME voice keyboard app & service
 │   └── voicekey-core/        # AAR library module, Kotlin wrapper & tests
 ├── crates/
 │   ├── voicekey-core/        # Shared cross-platform engine

@@ -60,9 +60,10 @@ Detailed technical specifications and loophole mitigations are documented in [.p
   - UniFFI interface definitions for `voicekey-core`.
   - Android NDK (`cargo-ndk`) cross-compilation for `aarch64-linux-android`.
   - Android `.aar` library packaging and Kotlin test harness.
-- [ ] **Phase 14: Android IME & Audio Capture**
+- [x] **Phase 14: Android IME & Audio Capture**
   - Android Studio project: `InputMethodService` (VoiceKey custom keyboard).
   - Native `AudioRecord` 16kHz streaming bound to Foreground Service (microphone privacy).
+  - Real-time `WaveformView` amplitude visualizer and haptic feedback.
   - Direct text insertion via `InputConnection.commitText()`.
 - [ ] **Phase 15: Android Settings, Model Manager & Distribution**
   - Jetpack Compose settings screen and in-app model downloader.
