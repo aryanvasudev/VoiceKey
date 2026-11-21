@@ -24,7 +24,10 @@ import android.widget.TextView
 import androidx.core.content.ContextCompat
 import com.voicekey.app.R
 import com.voicekey.app.audio.VoiceKeyAudioRecorder
+import com.voicekey.app.model.VoiceKeyModelManager
 import com.voicekey.app.service.VoiceKeyAudioRecordingService
+import com.voicekey.app.settings.SettingsActivity
+import com.voicekey.app.settings.VoiceKeyPreferences
 import com.voicekey.app.ui.WaveformView
 import com.voicekey.core.VoiceKeyCore
 import kotlinx.coroutines.CoroutineScope
@@ -49,6 +52,8 @@ class VoiceKeyInputMethodService : InputMethodService() {
     private val mainHandler = Handler(Looper.getMainLooper())
 
     private val audioRecorder = VoiceKeyAudioRecorder()
+    private lateinit var preferences: VoiceKeyPreferences
+    private lateinit var modelManager: VoiceKeyModelManager
     private var voiceKeyCore: VoiceKeyCore? = null
 
     // UI View references
@@ -64,6 +69,8 @@ class VoiceKeyInputMethodService : InputMethodService() {
 
     override fun onCreate() {
         super.onCreate()
+        preferences = VoiceKeyPreferences(this)
+        modelManager = VoiceKeyModelManager(this)
         loadVoiceKeyEngine()
     }
 
@@ -210,30 +217,53 @@ class VoiceKeyInputMethodService : InputMethodService() {
     }
 
     private fun processAudioTranscription(pcmBytes: ByteArray): String? {
-        val core = voiceKeyCore
+        val core = voiceKeyCore ?: run {
+            loadVoiceKeyEngine()
+            voiceKeyCore
+        }
+
+        val prompt = preferences.customVocabulary.ifBlank { null }
         return if (core != null) {
             try {
-                val result = core.transcribePcm16(pcmBytes, sampleRate = 16000, channels = 1)
+                val result = core.transcribePcm16(
+                    pcmBytes = pcmBytes,
+                    sampleRate = 16000,
+                    channels = 1,
+                    initialPrompt = prompt
+                )
                 result.text.trim()
             } catch (e: Exception) {
                 Log.e(TAG, "Core transcribe failed: ${e.message}", e)
                 null
             }
         } else {
-            Log.i(TAG, "No VoiceKeyCore engine loaded; checking model file availability")
-            // Try loading model once more
-            loadVoiceKeyEngine()
-            voiceKeyCore?.let {
-                val result = it.transcribePcm16(pcmBytes, sampleRate = 16000, channels = 1)
-                result.text.trim()
-            }
+            Log.w(TAG, "No VoiceKeyCore engine or model file loaded.")
+            null
         }
     }
 
     private fun loadVoiceKeyEngine() {
         if (voiceKeyCore != null) return
 
-        // Look for model files in application files directory
+        // Check active model from preferences / modelManager first
+        val activeModel = modelManager.getActiveModelFile()
+        if (activeModel != null && activeModel.exists() && activeModel.canRead()) {
+            try {
+                Log.i(TAG, "Initializing VoiceKeyCore with active model at ${activeModel.absolutePath}")
+                voiceKeyCore = VoiceKeyCore.create(
+                    modelPath = activeModel.absolutePath,
+                    threads = preferences.threadsCount,
+                    language = "en",
+                    enableNormalization = preferences.autoNormalizeEnabled,
+                    enableSpokenPunctuation = preferences.spokenPunctuationEnabled
+                )
+                return
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed initializing VoiceKeyCore with active model ${activeModel.absolutePath}", e)
+            }
+        }
+
+        // Look for model files in standard fallback application directories
         val possibleModelDirs = listOfNotNull(
             getExternalFilesDir(null),
             filesDir,
@@ -256,10 +286,10 @@ class VoiceKeyInputMethodService : InputMethodService() {
                         Log.i(TAG, "Initializing VoiceKeyCore with model at ${candidate.absolutePath}")
                         voiceKeyCore = VoiceKeyCore.create(
                             modelPath = candidate.absolutePath,
-                            threads = 4,
+                            threads = preferences.threadsCount,
                             language = "en",
-                            enableNormalization = true,
-                            enableSpokenPunctuation = true
+                            enableNormalization = preferences.autoNormalizeEnabled,
+                            enableSpokenPunctuation = preferences.spokenPunctuationEnabled
                         )
                         return
                     } catch (e: Exception) {
@@ -307,13 +337,26 @@ class VoiceKeyInputMethodService : InputMethodService() {
     }
 
     private fun resetUiState() {
-        statusTextView?.text = getString(R.string.status_idle)
+        if (voiceKeyCore == null && modelManager.getActiveModelFile() == null) {
+            statusTextView?.text = "No model found. Tap to setup"
+            statusTextView?.setOnClickListener {
+                val intent = Intent(this, SettingsActivity::class.java).apply {
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                }
+                startActivity(intent)
+            }
+        } else {
+            statusTextView?.text = getString(R.string.status_idle)
+            statusTextView?.setOnClickListener(null)
+        }
         waveformView?.setRecording(false)
         micButton?.clearColorFilter()
     }
 
     @SuppressLint("MissingPermission")
     private fun vibrateFeedback() {
+        if (!preferences.hapticFeedbackEnabled) return
+
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 val vibratorManager = getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as? VibratorManager
