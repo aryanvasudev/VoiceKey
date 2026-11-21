@@ -216,7 +216,14 @@ The resulting `target/voicekey-core.aar` contains:
 - `classes.jar` & ProGuard rules preserving JNA bindings
 - `AndroidManifest.xml`
 
-### 7. Run Workspace Test Suite
+### 7. Android Application (.apk) Packaging
+To assemble the complete VoiceKey Android APK distribution bundle with native libraries and resources:
+```bash
+./scripts/package_android_apk.sh
+```
+The resulting `target/voicekey-app-release.apk` packages the `InputMethodService` keyboard, Settings Activity, `VoiceKeyModelManager` with SHA-256 verification, and native dual-ABI inference runtimes (`arm64-v8a` and `x86_64`).
+
+### 8. Run Workspace Test Suite
 Run the unit and integration tests across all workspace crates:
 ```bash
 cargo test --workspace
@@ -232,8 +239,10 @@ VoiceKey/
 │   ├── ci.yml                # Linux, Windows & Android FFI test matrix
 │   └── release.yml           # Automated release asset packaging & publishing
 ├── android/                  # Android Gradle project
-│   ├── app/                  # VoiceKey IME voice keyboard app & service
+│   ├── app/                  # VoiceKey IME voice keyboard app, SettingsActivity & ModelManager
 │   └── voicekey-core/        # AAR library module, Kotlin wrapper & tests
+├── fastlane/                 # App Store & F-Droid distribution metadata
+├── fdroid/                   # F-Droid build recipe & metadata
 ├── crates/
 │   ├── voicekey-core/        # Shared cross-platform engine
 │   │   ├── src/audio/        # Capture (cpal), downmixing, rubato resampler, buffer
@@ -249,7 +258,8 @@ VoiceKey/
 │       └── tauri.conf.json   # Multi-platform bundle configuration
 └── scripts/
     ├── build_android_native.sh   # Android NDK cross-compilation & bindgen script
-    ├── package_android_aar.sh    # Production .aar packaging script
+    ├── package_android_aar.sh    # Production .aar library packaging script
+    ├── package_android_apk.sh    # Production .apk application packaging script
     ├── cmake/                    # Wrapped Android CMake toolchains
     ├── 99-voicekey-uinput.rules  # Linux udev rule for non-root uinput access
     ├── voicekey.desktop          # XDG desktop application entry
@@ -261,3 +271,4 @@ VoiceKey/
 ## 📄 License
 
 This project is licensed under the [MIT License](LICENSE).
+

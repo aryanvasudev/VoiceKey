@@ -167,28 +167,28 @@ A review of naive cross-platform assumptions revealed several critical edge case
 - [x] GitHub Actions CI workflow for automated cross-compilation of Windows and Linux binaries.
 
 ### Phase 7: Android Core FFI (`uniffi-rs`)
-- [ ] Configure `uniffi-rs` interface definition for `voicekey-core`.
-- [ ] Cross-compile `voicekey-core` for `aarch64-linux-android` using Android NDK (`cargo-ndk`).
-- [ ] Generate Kotlin bindings and package as an Android `.aar` library.
-- [ ] Unit test Kotlin wrapper with mock audio input.
+- [x] Configure `uniffi-rs` interface definition for `voicekey-core`.
+- [x] Cross-compile `voicekey-core` for `aarch64-linux-android` and `x86_64-linux-android` using Android NDK (`cargo-ndk`).
+- [x] Generate Kotlin bindings and package as an Android `.aar` library.
+- [x] Unit test Kotlin wrapper with mock audio input.
 
 ### Phase 8: Android IME & Audio Capture
-- [ ] Initialize Android Studio project (`android/`) targeting Android 10+ (API 29+).
-- [ ] Implement `InputMethodService` (VoiceKey Keyboard):
+- [x] Initialize Android Studio project (`android/`) targeting Android 10+ (API 29+).
+- [x] Implement `InputMethodService` (VoiceKey Keyboard):
   - Accessible from any app via the system keyboard switcher.
-  - Clean keyboard toolbar with one-tap mic trigger.
-- [ ] Audio recording via Android `AudioRecord`:
-  - 16kHz 16-bit mono streaming buffer piped into Rust core.
+  - Clean keyboard toolbar with one-tap mic trigger and real-time waveform visualizer.
+- [x] Audio recording via Android `AudioRecord`:
+  - 16kHz 16-bit mono streaming buffer with 200ms pre-roll piped into Rust core.
   - Foreground service notification during recording to respect Android privacy indicators.
-- [ ] Text insertion via `currentInputConnection.commitText(transcription, 1)`.
+- [x] Text insertion via `currentInputConnection.commitText(transcription, 1)`.
 
 ### Phase 9: Android Settings, Model Manager & Distribution
-- [ ] Jetpack Compose settings screen:
-  - Model download manager (saving `tiny.en` Q5_0 and `base.en` Q4_0 in app storage).
+- [x] Android settings screen:
+  - Model download manager (saving `tiny.en` and `base.en` in app storage) with SHA-256 validation.
   - Custom vocabulary input.
-  - Haptic feedback settings on record/finish.
-- [ ] Release signing and packaging:
-  - Production APK and AAB builds.
+  - Haptic feedback and punctuation settings on record/finish.
+- [x] Release packaging:
+  - Production APK build script (`package_android_apk.sh`).
   - Metadata for GitHub Releases and F-Droid packaging.
 
 ---

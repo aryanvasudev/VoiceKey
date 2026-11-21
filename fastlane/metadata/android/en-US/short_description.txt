@@ -1,0 +1,1 @@
+100% offline, private voice dictation keyboard powered by quantized Whisper.

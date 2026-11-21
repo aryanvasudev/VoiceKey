@@ -65,7 +65,7 @@ Detailed technical specifications and loophole mitigations are documented in [.p
   - Native `AudioRecord` 16kHz streaming bound to Foreground Service (microphone privacy).
   - Real-time `WaveformView` amplitude visualizer and haptic feedback.
   - Direct text insertion via `InputConnection.commitText()`.
-- [ ] **Phase 15: Android Settings, Model Manager & Distribution**
-  - Jetpack Compose settings screen and in-app model downloader.
-  - Haptic feedback and custom prompt dictionary.
-  - Production APK / AAB builds for GitHub Releases and F-Droid.
+- [x] **Phase 15: Android Settings, Model Manager & Distribution**
+  - Settings Activity with in-app model downloader, live progress, and SHA-256 verification.
+  - Haptic feedback, spoken punctuation, auto-normalization, and custom vocabulary dictionary.
+  - Production APK packaging script (`package_android_apk.sh`) and F-Droid / Fastlane metadata.

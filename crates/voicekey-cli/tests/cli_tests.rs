@@ -57,7 +57,9 @@ fn test_cli_record_and_transcribe_e2e() {
         assert!(rec_stdout.contains("Recording Saved Successfully"));
     } else {
         // In headless CI runners without physical microphone devices, create synthetic 16kHz WAV
-        eprintln!("No hardware audio capture device available in test environment; synthesizing WAV.");
+        eprintln!(
+            "No hardware audio capture device available in test environment; synthesizing WAV."
+        );
         voicekey_core::audio::write_wav(&wav_path, &[0.0f32; 8000], 16000)
             .expect("Failed to write synthetic test WAV");
     }
