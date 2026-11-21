@@ -3,5 +3,6 @@ members = [
     "crates/voicekey-core",
     "crates/voicekey-cli",
     "crates/voicekey-desktop",
+    "crates/voicekey-android-ffi",
 ]
 resolver = "2"
