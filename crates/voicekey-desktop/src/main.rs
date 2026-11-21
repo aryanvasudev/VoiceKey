@@ -91,6 +91,7 @@ fn main() {
             tauri::async_runtime::spawn(async move {
                 while state_rx.changed().await.is_ok() {
                     let cur_state = *state_rx.borrow();
+                    let _ = app_handle_for_state_watcher.emit("engine-state-changed", format!("{cur_state:?}").to_lowercase());
                     if let Some(win) = app_handle_for_state_watcher.get_webview_window("overlay") {
                         match cur_state {
                             crate::state::EngineState::Recording

@@ -55,6 +55,7 @@ class VoiceKeyInputMethodService : InputMethodService() {
     private lateinit var preferences: VoiceKeyPreferences
     private lateinit var modelManager: VoiceKeyModelManager
     private var voiceKeyCore: VoiceKeyCore? = null
+    private var loadedModelPath: String? = null
 
     // UI View references
     private var rootView: View? = null
@@ -94,6 +95,7 @@ class VoiceKeyInputMethodService : InputMethodService() {
     override fun onStartInputView(info: EditorInfo?, restarting: Boolean) {
         super.onStartInputView(info, restarting)
         resetUiState()
+        loadVoiceKeyEngine()
     }
 
     override fun onFinishInputView(finishingInput: Boolean) {
@@ -243,10 +245,14 @@ class VoiceKeyInputMethodService : InputMethodService() {
     }
 
     private fun loadVoiceKeyEngine() {
-        if (voiceKeyCore != null) return
-
         // Check active model from preferences / modelManager first
         val activeModel = modelManager.getActiveModelFile()
+        val targetPath = activeModel?.takeIf { it.exists() && it.canRead() }?.absolutePath
+
+        if (voiceKeyCore != null && targetPath != null && loadedModelPath == targetPath) {
+            return
+        }
+
         if (activeModel != null && activeModel.exists() && activeModel.canRead()) {
             try {
                 Log.i(TAG, "Initializing VoiceKeyCore with active model at ${activeModel.absolutePath}")
@@ -257,6 +263,7 @@ class VoiceKeyInputMethodService : InputMethodService() {
                     enableNormalization = preferences.autoNormalizeEnabled,
                     enableSpokenPunctuation = preferences.spokenPunctuationEnabled
                 )
+                loadedModelPath = activeModel.absolutePath
                 return
             } catch (e: Exception) {
                 Log.e(TAG, "Failed initializing VoiceKeyCore with active model ${activeModel.absolutePath}", e)
@@ -282,6 +289,9 @@ class VoiceKeyInputMethodService : InputMethodService() {
             for (name in modelNames) {
                 val candidate = File(dir, name)
                 if (candidate.exists() && candidate.canRead() && candidate.length() > 0) {
+                    if (voiceKeyCore != null && loadedModelPath == candidate.absolutePath) {
+                        return
+                    }
                     try {
                         Log.i(TAG, "Initializing VoiceKeyCore with model at ${candidate.absolutePath}")
                         voiceKeyCore = VoiceKeyCore.create(
@@ -291,6 +301,7 @@ class VoiceKeyInputMethodService : InputMethodService() {
                             enableNormalization = preferences.autoNormalizeEnabled,
                             enableSpokenPunctuation = preferences.spokenPunctuationEnabled
                         )
+                        loadedModelPath = candidate.absolutePath
                         return
                     } catch (e: Exception) {
                         Log.e(TAG, "Failed initializing VoiceKeyCore with ${candidate.absolutePath}", e)

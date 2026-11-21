@@ -879,8 +879,8 @@
     let previousState = "idle";
     let hideTimeout = null;
 
-    // Real-time state polling
-    async function pollState() {
+    // Event-driven state updates from backend
+    async function refreshState() {
       try {
         const status = await invoke("get_engine_status");
         if (status) {
@@ -888,12 +888,30 @@
         }
       } catch (e) {}
     }
-    setInterval(pollState, 150);
+
+    listen("engine-state-changed", () => {
+      refreshState();
+    });
+
+    // Initial state check
+    refreshState();
+
+    // Low-frequency fallback poll (1.5s when idle, 250ms when recording)
+    let statePollInterval = setInterval(refreshState, 1500);
 
     function updatePillUI(state, model) {
       if (state !== "recording" && streamingPreview) {
         streamingPreview.style.display = "none";
         streamingText.innerText = "";
+      }
+
+      // Adjust poll rate adaptively
+      if (state === "recording" && previousState !== "recording") {
+        clearInterval(statePollInterval);
+        statePollInterval = setInterval(refreshState, 250);
+      } else if (state !== "recording" && previousState === "recording") {
+        clearInterval(statePollInterval);
+        statePollInterval = setInterval(refreshState, 1500);
       }
 
       pillDot.className = "status-dot " + (
@@ -937,7 +955,7 @@
         clearInterval(timerInterval);
         recordingStartTime = null;
       } else {
-        // Idle state
+        // Idle state (auto-hide managed by backend watcher)
         clearInterval(timerInterval);
         recordingStartTime = null;
         waveform.className = "waveform";
@@ -950,12 +968,11 @@
           pillDot.className = "status-dot pasting";
           if (!hideTimeout) {
             hideTimeout = setTimeout(() => {
-              invoke("hide_overlay");
               pillTitle.innerText = "VoiceKey";
               pillTimer.innerText = "Ready";
               pillDot.className = "status-dot";
               hideTimeout = null;
-            }, 1200);
+            }, 1500);
           }
         } else {
           pillTitle.innerText = "VoiceKey";

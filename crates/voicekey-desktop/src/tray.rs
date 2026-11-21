@@ -149,10 +149,21 @@ pub fn setup_tray(
         ],
     )?;
 
+    // Initialize model checkmarks from saved settings
+    let initial_settings = crate::settings::load_settings();
+    let _ = model_tiny_item.set_checked(initial_settings.active_model == "tiny.en");
+    let _ = model_base_item.set_checked(initial_settings.active_model == "base.en");
+    let _ = model_small_item.set_checked(initial_settings.active_model == "small.en");
+
     let initial_icon = Image::from_bytes(ICON_IDLE_BYTES)?;
 
     let engine_clone = engine.clone();
     let app_handle = app.clone();
+    let mute_item_clone = mute_item.clone();
+    let model_tiny_clone = model_tiny_item.clone();
+    let model_base_clone = model_base_item.clone();
+    let model_small_clone = model_small_item.clone();
+    let autostart_clone = autostart_item.clone();
 
     let tray_icon = TrayIconBuilder::with_id("main-tray")
         .icon(initial_icon)
@@ -163,6 +174,11 @@ pub fn setup_tray(
             let id = event.id.as_ref().to_string();
             let engine = engine_clone.clone();
             let app = app_handle.clone();
+            let mute_item = mute_item_clone.clone();
+            let model_tiny = model_tiny_clone.clone();
+            let model_base = model_base_clone.clone();
+            let model_small = model_small_clone.clone();
+            let autostart = autostart_clone.clone();
 
             tauri::async_runtime::spawn(async move {
                 match id.as_str() {
@@ -171,24 +187,47 @@ pub fn setup_tray(
                     }
                     "mute" => {
                         engine.toggle_mute().await;
+                        if let Some(status) = engine.get_status().await {
+                            let _ = mute_item.set_checked(status.is_muted);
+                        }
                     }
                     "model_tiny" => {
                         engine.set_model("tiny.en".into()).await;
+                        let _ = model_tiny.set_checked(true);
+                        let _ = model_base.set_checked(false);
+                        let _ = model_small.set_checked(false);
+                        let mut s = crate::settings::load_settings();
+                        s.active_model = "tiny.en".into();
+                        let _ = crate::settings::save_settings(&s);
                     }
                     "model_base" => {
                         engine.set_model("base.en".into()).await;
+                        let _ = model_tiny.set_checked(false);
+                        let _ = model_base.set_checked(true);
+                        let _ = model_small.set_checked(false);
+                        let mut s = crate::settings::load_settings();
+                        s.active_model = "base.en".into();
+                        let _ = crate::settings::save_settings(&s);
                     }
                     "model_small" => {
                         engine.set_model("small.en".into()).await;
+                        let _ = model_tiny.set_checked(false);
+                        let _ = model_base.set_checked(false);
+                        let _ = model_small.set_checked(true);
+                        let mut s = crate::settings::load_settings();
+                        s.active_model = "small.en".into();
+                        let _ = crate::settings::save_settings(&s);
                     }
                     "autostart" => {
                         let manager = app.autolaunch();
                         if let Ok(enabled) = manager.is_enabled() {
                             if enabled {
                                 let _ = manager.disable();
+                                let _ = autostart.set_checked(false);
                                 info!("Disabled application autostart.");
                             } else {
                                 let _ = manager.enable();
+                                let _ = autostart.set_checked(true);
                                 info!("Enabled application autostart.");
                             }
                         }

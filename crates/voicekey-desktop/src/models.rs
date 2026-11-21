@@ -218,9 +218,37 @@ pub async fn download_model_with_progress(
     );
 
     while let Some(chunk_res) = stream.next().await {
-        let chunk = chunk_res.map_err(|e| format!("Error receiving network stream: {e}"))?;
-        file.write_all(&chunk)
-            .map_err(|e| format!("Error writing model chunk to disk: {e}"))?;
+        let chunk = match chunk_res {
+            Ok(c) => c,
+            Err(e) => {
+                let _ = fs::remove_file(&temp_path);
+                let _ = app.emit(
+                    "model_download_progress",
+                    ModelDownloadProgress {
+                        model_id: preset.id.clone(),
+                        downloaded_bytes: downloaded,
+                        total_bytes: total_size,
+                        percentage: 0.0,
+                        status: "failed".into(),
+                    },
+                );
+                return Err(format!("Error receiving network stream: {e}"));
+            }
+        };
+        if let Err(e) = file.write_all(&chunk) {
+            let _ = fs::remove_file(&temp_path);
+            let _ = app.emit(
+                "model_download_progress",
+                ModelDownloadProgress {
+                    model_id: preset.id.clone(),
+                    downloaded_bytes: downloaded,
+                    total_bytes: total_size,
+                    percentage: 0.0,
+                    status: "failed".into(),
+                },
+            );
+            return Err(format!("Error writing model chunk to disk: {e}"));
+        }
 
         hasher.update(&chunk);
         downloaded += chunk.len() as u64;
@@ -238,8 +266,20 @@ pub async fn download_model_with_progress(
         );
     }
 
-    file.flush()
-        .map_err(|e| format!("Failed to flush file to disk: {e}"))?;
+    if let Err(e) = file.flush() {
+        let _ = fs::remove_file(&temp_path);
+        let _ = app.emit(
+            "model_download_progress",
+            ModelDownloadProgress {
+                model_id: preset.id.clone(),
+                downloaded_bytes: downloaded,
+                total_bytes: total_size,
+                percentage: 0.0,
+                status: "failed".into(),
+            },
+        );
+        return Err(format!("Failed to flush file to disk: {e}"));
+    }
     drop(file);
 
     // Verify SHA-256 Checksum

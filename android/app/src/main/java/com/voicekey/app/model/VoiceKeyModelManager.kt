@@ -128,22 +128,51 @@ class VoiceKeyModelManager(private val context: Context) {
         val tempFile = File(getModelsDir(), "${preset.filename}.tmp")
 
         try {
-            val url = URL(preset.url)
-            val connection = url.openConnection() as HttpURLConnection
-            connection.connectTimeout = 15000
-            connection.readTimeout = 30000
-            connection.instanceFollowRedirects = true
-            connection.connect()
+            var currentUrl = preset.url
+            var connection: HttpURLConnection? = null
+            var redirectCount = 0
+            val maxRedirects = 5
 
-            val responseCode = connection.responseCode
+            while (redirectCount < maxRedirects) {
+                val url = URL(currentUrl)
+                val conn = url.openConnection() as HttpURLConnection
+                conn.connectTimeout = 15000
+                conn.readTimeout = 30000
+                conn.instanceFollowRedirects = true
+                conn.connect()
+
+                val code = conn.responseCode
+                if (code in 301..308) {
+                    val location = conn.getHeaderField("Location")
+                    conn.disconnect()
+                    if (location != null) {
+                        currentUrl = if (location.startsWith("http://") || location.startsWith("https://")) {
+                            location
+                        } else {
+                            URL(url, location).toString()
+                        }
+                        redirectCount++
+                        continue
+                    }
+                }
+                connection = conn
+                break
+            }
+
+            val conn = connection ?: return@withContext Result.failure(
+                IllegalStateException("Too many redirects downloading model")
+            )
+
+            val responseCode = conn.responseCode
             if (responseCode !in 200..299) {
+                conn.disconnect()
                 return@withContext Result.failure(
                     IllegalStateException("HTTP error $responseCode while downloading model")
                 )
             }
 
-            val totalBytes = if (connection.contentLengthLong > 0) {
-                connection.contentLengthLong
+            val totalBytes = if (conn.contentLengthLong > 0) {
+                conn.contentLengthLong
             } else {
                 preset.sizeBytes
             }
@@ -151,7 +180,7 @@ class VoiceKeyModelManager(private val context: Context) {
             var downloadedBytes = 0L
             val buffer = ByteArray(16384)
 
-            connection.inputStream.use { input: InputStream ->
+            conn.inputStream.use { input: InputStream ->
                 FileOutputStream(tempFile).use { output: FileOutputStream ->
                     var bytesRead: Int
                     while (input.read(buffer).also { bytesRead = it } != -1) {
