@@ -1,5 +1,9 @@
 //! Dual Voice Activity Detection (VAD) using energy gating and silence trimming.
 
+pub mod streaming;
+
+pub use streaming::{AdaptiveVad, AdaptiveVadConfig, VadEvent};
+
 /// Configuration for energy-based Voice Activity Detection.
 #[derive(Debug, Clone, Copy)]
 pub struct VadConfig {

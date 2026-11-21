@@ -357,6 +357,30 @@ impl AudioRecorder {
         Ok(final_16k)
     }
 
+    /// Peek or clone the currently accumulated 16,000 Hz mono audio samples without stopping the stream.
+    pub fn peek_samples(&self) -> Result<Vec<f32>, CoreError> {
+        let raw = {
+            let buf = self.captured_samples.lock().unwrap();
+            buf.clone()
+        };
+
+        let pre = {
+            let pre_buf = self.pre_roll_buffer.lock().unwrap();
+            pre_buf.get_pre_roll()
+        };
+
+        let mut combined = pre;
+        combined.extend(raw);
+
+        if self.active_sample_rate != self.config.target_sample_rate && !combined.is_empty() {
+            let resampler =
+                AudioResampler::new(self.active_sample_rate, self.config.target_sample_rate)?;
+            resampler.resample(&combined)
+        } else {
+            Ok(combined)
+        }
+    }
+
     /// Query the current RMS and peak volume amplitude levels.
     pub fn current_levels(&self) -> (f32, f32) {
         let rms = f32::from_bits(self.rms_bits.load(Ordering::Relaxed));
