@@ -17,7 +17,8 @@ def test_copy_to_clipboard_empty():
 
 
 def test_copy_to_clipboard_wl_copy():
-    """copy_to_clipboard invokes wl-copy with encoded text."""
+    """copy_to_clipboard invokes wl-copy with encoded text and non-pipe stderr."""
+    import subprocess
     mock_run = MagicMock()
     mock_run.return_value.returncode = 0
 
@@ -28,10 +29,12 @@ def test_copy_to_clipboard_wl_copy():
         cmd = mock_run.call_args[0][0]
         assert cmd[0] == "/usr/bin/wl-copy"
         assert mock_run.call_args[1]["input"] == b"test dictation"
+        assert mock_run.call_args[1]["stderr"] != subprocess.PIPE
 
 
 def test_copy_to_clipboard_xclip_fallback():
     """When wl-copy is absent, copy_to_clipboard falls back to xclip."""
+    import subprocess
     mock_run = MagicMock()
     mock_run.return_value.returncode = 0
 
@@ -42,6 +45,7 @@ def test_copy_to_clipboard_xclip_fallback():
         cmd = mock_run.call_args[0][0]
         assert cmd[0] == "/usr/bin/xclip"
         assert "-selection" in cmd
+        assert mock_run.call_args[1]["stderr"] != subprocess.PIPE
 
 
 def test_copy_to_clipboard_failure():

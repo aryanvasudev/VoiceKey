@@ -6,7 +6,8 @@ set -euo pipefail
 
 BINDING_NAME="VoiceKey Dictation"
 BINDING_PATH="/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/voicekey/"
-DEFAULT_KEY="<Primary><Alt>space"
+F9_BINDING_PATH="/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/voicekey-f9/"
+DEFAULT_KEY="<Super>z"
 KEY_COMBINATION="${1:-$DEFAULT_KEY}"
 
 if ! command -v gsettings >/dev/null 2>&1; then
@@ -27,7 +28,7 @@ if [[ -z "$VOICEKEY_BIN" ]]; then
 fi
 
 if [[ "${1:-}" == "--remove" ]]; then
-    echo "Removing VoiceKey GNOME shortcut..."
+    echo "Removing VoiceKey GNOME shortcuts..."
     python3 - <<EOF
 import subprocess, ast
 
@@ -38,23 +39,28 @@ if raw.startswith("@as"):
 else:
     items = ast.literal_eval(raw)
 
-items = [p for p in items if "$BINDING_PATH" not in p]
+items = [p for p in items if "voicekey" not in p]
 val_str = str(items) if items else "@as []"
 subprocess.run(["gsettings", "set", "org.gnome.settings-daemon.plugins.media-keys", "custom-keybindings", val_str], check=True)
-print("VoiceKey shortcut removed successfully.")
+print("VoiceKey shortcuts removed successfully.")
 EOF
     exit 0
 fi
 
-echo "Configuring GNOME shortcut for VoiceKey..."
+echo "Configuring GNOME shortcuts for VoiceKey..."
 echo "  Action:    $VOICEKEY_BIN toggle"
-echo "  Shortcut:  $KEY_COMBINATION"
-echo "  Path:      $BINDING_PATH"
+echo "  Primary:   $KEY_COMBINATION ($BINDING_PATH)"
+echo "  Secondary: F9 ($F9_BINDING_PATH)"
 
-# Set binding details
+# Set primary binding details
 gsettings set "org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:$BINDING_PATH" name "$BINDING_NAME"
 gsettings set "org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:$BINDING_PATH" command "$VOICEKEY_BIN toggle"
 gsettings set "org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:$BINDING_PATH" binding "$KEY_COMBINATION"
+
+# Set F9 binding details
+gsettings set "org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:$F9_BINDING_PATH" name "VoiceKey Dictation (F9)"
+gsettings set "org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:$F9_BINDING_PATH" command "$VOICEKEY_BIN toggle"
+gsettings set "org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:$F9_BINDING_PATH" binding "F9"
 
 # Append to custom-keybindings list safely using Python
 python3 - <<EOF
@@ -67,15 +73,14 @@ if raw.startswith("@as"):
 else:
     items = ast.literal_eval(raw)
 
-target = "$BINDING_PATH"
-if target not in items:
-    items.append(target)
-    subprocess.run(["gsettings", "set", "org.gnome.settings-daemon.plugins.media-keys", "custom-keybindings", str(items)], check=True)
-    print("Added VoiceKey to GNOME custom-keybindings list.")
-else:
-    print("VoiceKey is already in GNOME custom-keybindings list.")
+for target in ["$BINDING_PATH", "$F9_BINDING_PATH"]:
+    if target not in items:
+        items.append(target)
+
+subprocess.run(["gsettings", "set", "org.gnome.settings-daemon.plugins.media-keys", "custom-keybindings", str(items)], check=True)
+print("Updated GNOME custom-keybindings list.")
 EOF
 
 echo ""
-echo "Successfully configured global hotkey: $KEY_COMBINATION -> 'voicekey toggle'"
-echo "Test it now by opening any text field and pressing: $KEY_COMBINATION"
+echo "Successfully configured global hotkeys: $KEY_COMBINATION and F9 -> '$VOICEKEY_BIN toggle'"
+echo "Test it now by opening any text field and pressing: $KEY_COMBINATION or F9"

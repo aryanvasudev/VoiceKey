@@ -265,3 +265,20 @@ def test_cli_autostart_status(capsys: pytest.CaptureFixture[str]):
     assert "Found" in captured.out
     assert "Yes (starts on login)" in captured.out
 
+
+def test_cli_setup(capsys: pytest.CaptureFixture[str], tmp_path: Path):
+    """`voicekey setup` runs automated hardware tuning, service install, and reports completion."""
+    from unittest.mock import patch
+
+    conf = tmp_path / "config.toml"
+    with patch("voicekey.service.install_service", return_value=conf):
+        exit_code = cli.main(["--config", str(conf), "setup", "--skip-hotkey"])
+        assert exit_code == 0
+
+    captured = capsys.readouterr()
+    assert "Running automated setup" in captured.out
+    assert "Hardware auto-tuned" in captured.out
+    assert "Systemd user service installed and started" in captured.out
+    assert "Setup complete" in captured.out
+
+

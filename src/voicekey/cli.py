@@ -120,6 +120,20 @@ def create_parser() -> argparse.ArgumentParser:
         help="Check systemd service status (installed, enabled, active)",
     )
 
+    # `voicekey setup`
+    setup_parser = subparsers.add_parser("setup", help="Run automated setup (auto-tune hardware, register hotkey, start service)")
+    setup_parser.add_argument(
+        "--hotkey",
+        type=str,
+        default="<Super>z",
+        help="GNOME hotkey binding (default: '<Super>z' and 'F9')",
+    )
+    setup_parser.add_argument(
+        "--skip-hotkey",
+        action="store_true",
+        help="Skip GNOME hotkey registration",
+    )
+
     return parser
 
 
@@ -380,6 +394,49 @@ def handle_autostart_command(args: argparse.Namespace) -> int:
     return 0
 
 
+def handle_setup_command(args: argparse.Namespace, config) -> int:
+    """Run automated setup: doctor --apply, hotkey setup, autostart install & start."""
+    print("[voicekey] Running automated setup...")
+    # 1. doctor --apply
+    from voicekey.doctor import probe_hardware, recommend_setup
+    from voicekey.config import save_config, get_default_config_path
+    profile = probe_hardware()
+    rec = recommend_setup(profile)
+    config.transcription.backend = rec.backend
+    config.transcription.model_size = rec.model_size
+    config.transcription.device = rec.device
+    config.transcription.compute_type = rec.compute_type
+    config.transcription.cpu_threads = rec.cpu_threads
+    config_path = args.config or get_default_config_path()
+    save_config(config, config_path)
+    print(f"  ✔ Hardware auto-tuned (Backend: {rec.backend}, Model: {rec.model_size}, Device: {rec.device})")
+
+    # 2. GNOME hotkey
+    if not args.skip_hotkey:
+        import shutil
+        import subprocess
+        if shutil.which("gsettings"):
+            script_path = Path(__file__).resolve().parent.parent.parent / "scripts" / "setup_gnome_hotkey.sh"
+            if script_path.exists():
+                res = subprocess.run([str(script_path), args.hotkey], capture_output=True, text=True)
+                if res.returncode == 0:
+                    print(f"  ✔ GNOME shortcut registered ({args.hotkey})")
+                else:
+                    print(f"  ⚠ Failed to register GNOME shortcut: {res.stderr.strip()}")
+            else:
+                print(f"  ℹ setup_gnome_hotkey.sh not found at {script_path}")
+        else:
+            print("  ℹ gsettings not found (non-GNOME desktop; bind 'voicekey toggle' manually in your WM)")
+
+    # 3. Autostart install & start
+    from voicekey.service import install_service
+    install_service(enable=True, start=True)
+    print("  ✔ Systemd user service installed and started")
+
+    print("\n🎉 Setup complete! VoiceKey is running and ready to use.")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     """CLI main entry point."""
     parser = create_parser()
@@ -405,6 +462,9 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "autostart":
         return handle_autostart_command(args)
+
+    if args.command == "setup":
+        return handle_setup_command(args, config)
 
     if args.command in {"toggle", "start", "stop", "status"}:
         socket_path = config.resolved_socket_path()

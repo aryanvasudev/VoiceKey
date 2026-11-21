@@ -6,13 +6,15 @@ import logging
 import shutil
 import subprocess
 
+import os
+
 logger = logging.getLogger("voicekey.notify")
 
 
 def send_notification(
     summary: str,
     body: str = "",
-    urgency: str = "low",
+    urgency: str = "normal",
     timeout_ms: int = 2500,
     app_name: str = "VoiceKey",
     synchronous_tag: str | None = "voicekey-dictation",
@@ -41,11 +43,16 @@ def send_notification(
     if body:
         cmd.append(body)
 
+    # Sanitize environment so notify-send does not inherit conflicting LD_LIBRARY_PATH
+    clean_env = dict(os.environ)
+    clean_env.pop("LD_LIBRARY_PATH", None)
+
     try:
         subprocess.Popen(
             cmd,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
+            env=clean_env,
         )
         return True
     except Exception as e:

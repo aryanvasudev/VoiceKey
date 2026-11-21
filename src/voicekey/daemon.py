@@ -62,6 +62,13 @@ class VoiceKeyDaemon:
 
     def warm_up_transcriber(self) -> None:
         """Pre-warm and hold the transcription model in RAM."""
+        if self.injector.is_available:
+            try:
+                self.injector._ensure_device()
+                logger.info("Pre-initialized virtual input device for auto-paste.")
+            except Exception as e:
+                logger.warning("Could not pre-initialize virtual input device: %s", e)
+
         if self.transcriber is None:
             logger.info("Initializing transcription engine: %s...", self.config.transcription.backend)
             self.transcriber = create_transcriber(self.config.transcription)
@@ -86,7 +93,7 @@ class VoiceKeyDaemon:
                 self.recorder.start(play_cue=True)
                 self.state = DaemonState.RECORDING
                 if self.config.output.notify:
-                    send_notification("VoiceKey", "Recording started...", timeout_ms=1500)
+                    send_notification("VoiceKey", "🎤 Recording started...", timeout_ms=1500)
                 return {
                     "status": "ok",
                     "state": DaemonState.RECORDING.value,
@@ -103,7 +110,7 @@ class VoiceKeyDaemon:
         rms = AudioRecorder.calculate_rms(audio_data)
 
         if self.config.output.notify:
-            send_notification("VoiceKey", "Transcribing speech...", timeout_ms=1500)
+            send_notification("VoiceKey", "⏳ Transcribing speech...", timeout_ms=1500)
 
         text = ""
         paste_action = "none"
@@ -130,11 +137,17 @@ class VoiceKeyDaemon:
         async with self._lock:
             self.state = DaemonState.IDLE
 
-        if self.config.output.notify and text:
-            if paste_action == "pasted":
-                send_notification("VoiceKey", f"Pasted: {text[:60]}...", timeout_ms=2000)
+        if self.config.output.notify:
+            if text:
+                preview = text if len(text) <= 50 else f"{text[:47]}..."
+                if paste_action == "pasted":
+                    send_notification("VoiceKey", f"✅ Pasted: \"{preview}\"", timeout_ms=2500)
+                elif paste_action == "clipboard_failed":
+                    send_notification("VoiceKey", "⚠️ Clipboard failed", timeout_ms=2500)
+                else:
+                    send_notification("VoiceKey", f"📋 Copied: \"{preview}\"", timeout_ms=2500)
             else:
-                send_notification("VoiceKey", f"Copied to clipboard: {text[:60]}...", timeout_ms=2500)
+                send_notification("VoiceKey", "⚠️ No speech detected", timeout_ms=2000)
 
         logger.info("Transcription completed: '%s' (%.2fs, action=%s)", text, duration, paste_action)
         return {
@@ -211,6 +224,8 @@ class VoiceKeyDaemon:
         if self.config.output.notify and text:
             if paste_action == "pasted":
                 send_notification("VoiceKey", f"Pasted: {text[:60]}...", timeout_ms=2000)
+            elif paste_action == "clipboard_failed":
+                send_notification("VoiceKey", "Clipboard copy failed", timeout_ms=2500)
             else:
                 send_notification("VoiceKey", f"Copied to clipboard: {text[:60]}...", timeout_ms=2500)
 

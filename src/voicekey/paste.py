@@ -6,6 +6,7 @@ import logging
 import os
 import shutil
 import subprocess
+import tempfile
 import time
 from pathlib import Path
 from typing import Tuple
@@ -32,29 +33,52 @@ def check_uinput_accessible() -> tuple[bool, str]:
     return True, "/dev/uinput is accessible."
 
 
+def _get_display_env() -> dict[str, str]:
+    """Ensure WAYLAND_DISPLAY and DISPLAY environment variables are set."""
+    env = os.environ.copy()
+    if "WAYLAND_DISPLAY" not in env:
+        xdg_runtime = env.get("XDG_RUNTIME_DIR", f"/run/user/{os.getuid()}")
+        for sock in ("wayland-0", "wayland-1"):
+            if (Path(xdg_runtime) / sock).exists():
+                env["WAYLAND_DISPLAY"] = sock
+                break
+    if "DISPLAY" not in env and Path("/tmp/.X11-unix/X0").exists():
+        env["DISPLAY"] = ":0"
+    return env
+
+
 def copy_to_clipboard(text: str) -> bool:
     """Copy text to system clipboard using wl-copy (Wayland) or xclip (X11)."""
     if not text:
         return True
 
     text_bytes = text.encode("utf-8")
+    env = _get_display_env()
 
     # Try Wayland wl-copy first
     wl_copy = shutil.which("wl-copy")
     if wl_copy:
         try:
-            res = subprocess.run(
-                [wl_copy],
-                input=text_bytes,
-                check=False,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.PIPE,
-                timeout=2.0,
-            )
-            if res.returncode == 0:
-                logger.debug("Successfully copied text via wl-copy.")
-                return True
-            logger.warning("wl-copy returned exit code %d: %s", res.returncode, res.stderr.decode("utf-8", "ignore"))
+            # We redirect stderr to a temporary file rather than subprocess.PIPE.
+            # wl-copy forks a background daemon to serve clipboard selection requests.
+            # When subprocess.PIPE is used, the child process inherits the open stderr pipe,
+            # causing Python's communicate() to block indefinitely waiting for EOF on stderr.
+            with tempfile.TemporaryFile() as err_file:
+                res = subprocess.run(
+                    [wl_copy],
+                    input=text_bytes,
+                    check=False,
+                    stdout=subprocess.DEVNULL,
+                    stderr=err_file,
+                    env=env,
+                    timeout=2.0,
+                )
+                if res.returncode == 0:
+                    logger.debug("Successfully copied text via wl-copy.")
+                    return True
+                err_file.seek(0)
+                err_msg = err_file.read().decode("utf-8", "ignore").strip()
+                logger.warning("wl-copy returned exit code %d: %s", res.returncode, err_msg)
         except Exception as e:
             logger.warning("Error running wl-copy: %s", e)
 
@@ -62,17 +86,22 @@ def copy_to_clipboard(text: str) -> bool:
     xclip = shutil.which("xclip")
     if xclip:
         try:
-            res = subprocess.run(
-                [xclip, "-selection", "clipboard"],
-                input=text_bytes,
-                check=False,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.PIPE,
-                timeout=2.0,
-            )
-            if res.returncode == 0:
-                logger.debug("Successfully copied text via xclip.")
-                return True
+            with tempfile.TemporaryFile() as err_file:
+                res = subprocess.run(
+                    [xclip, "-selection", "clipboard"],
+                    input=text_bytes,
+                    check=False,
+                    stdout=subprocess.DEVNULL,
+                    stderr=err_file,
+                    env=env,
+                    timeout=2.0,
+                )
+                if res.returncode == 0:
+                    logger.debug("Successfully copied text via xclip.")
+                    return True
+                err_file.seek(0)
+                err_msg = err_file.read().decode("utf-8", "ignore").strip()
+                logger.warning("xclip returned exit code %d: %s", res.returncode, err_msg)
         except Exception as e:
             logger.warning("Error running xclip: %s", e)
 
@@ -114,8 +143,8 @@ class PasteInjector:
                 ]
             }
             self._uinput = UInput(cap, name=self.device_name)
-            # Short sleep to allow the kernel / display server to register the new device
-            time.sleep(0.05)
+            # Sleep to allow the kernel / display server (udev, libinput) to register the new device
+            time.sleep(0.1)
             logger.debug("Created virtual input device: %s", self.device_name)
             return self._uinput
         except Exception as e:
@@ -130,15 +159,23 @@ class PasteInjector:
             ui = self._ensure_device()
             from evdev import ecodes
 
-            # Press Ctrl + V
+            # Press Ctrl
             ui.write(ecodes.EV_KEY, ecodes.KEY_LEFTCTRL, 1)
+            ui.syn()
+            time.sleep(0.01)
+
+            # Press V
             ui.write(ecodes.EV_KEY, ecodes.KEY_V, 1)
             ui.syn()
 
             time.sleep(debounce_ms / 1000.0)
 
-            # Release V + Ctrl
+            # Release V
             ui.write(ecodes.EV_KEY, ecodes.KEY_V, 0)
+            ui.syn()
+            time.sleep(0.01)
+
+            # Release Ctrl
             ui.write(ecodes.EV_KEY, ecodes.KEY_LEFTCTRL, 0)
             ui.syn()
 

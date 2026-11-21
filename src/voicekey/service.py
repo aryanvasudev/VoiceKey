@@ -61,6 +61,7 @@ ExecStart={command}
 Restart=on-failure
 RestartSec=3s
 Environment=PYTHONUNBUFFERED=1
+PassEnvironment=WAYLAND_DISPLAY DISPLAY XDG_RUNTIME_DIR
 
 [Install]
 WantedBy=default.target

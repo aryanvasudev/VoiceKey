@@ -122,7 +122,7 @@ def main() -> int:
             print(f"  {check_mark(True)} VoiceKey custom keybinding found in GNOME settings.")
         else:
             print(f"  {check_mark(False)} No VoiceKey keybinding detected in GNOME settings.")
-            print("     Tip: Run './scripts/setup_gnome_hotkey.sh' to bind Super+V.")
+            print("     Tip: Run './scripts/setup_gnome_hotkey.sh' to bind Super+Z / F9.")
     else:
         print("  ℹ️ Non-GNOME desktop environment; configure window manager shortcut manually.")
 
