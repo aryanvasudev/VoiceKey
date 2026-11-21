@@ -39,13 +39,38 @@
        ============================================================ */
     #overlay-container {
       display: flex;
+      flex-direction: column;
       align-items: center;
-      justify-content: center;
+      justify-content: flex-start;
       width: 100vw;
       height: 100vh;
-      padding: 0;
+      padding: 4px 0 0 0;
       background: transparent;
       overflow: hidden;
+    }
+
+    .streaming-preview {
+      display: none;
+      max-width: 308px;
+      margin-top: 6px;
+      padding: 5px 12px;
+      background: rgba(14, 16, 22, 0.92);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      border-radius: 10px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.55);
+      backdrop-filter: blur(24px) saturate(180%);
+      color: #e2e8f0;
+      font-size: 11.5px;
+      line-height: 1.35;
+      text-align: center;
+      white-space: pre-wrap;
+      word-break: break-word;
+      pointer-events: none;
+      animation: fadeIn 0.15s ease-in-out;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(-4px); }
+      to { opacity: 1; transform: translateY(0); }
     }
 
     .pill-card {
@@ -557,6 +582,11 @@
         </button>
       </div>
     </div>
+
+    <!-- Live Partial Streaming Subtitle Preview -->
+    <div id="streaming-preview" class="streaming-preview" data-tauri-drag-region>
+      <span id="streaming-text"></span>
+    </div>
   </div>
 
   <!-- ============================================================
@@ -642,6 +672,28 @@
 
             <div class="toggle-row">
               <div>
+                <h3>Real-Time Streaming Transcription</h3>
+                <p>Speculatively transcribe in chunks to show live subtitles under the overlay pill.</p>
+              </div>
+              <label class="switch">
+                <input type="checkbox" id="check-streaming-enabled" checked>
+                <span class="slider"></span>
+              </label>
+            </div>
+
+            <div class="toggle-row">
+              <div>
+                <h3>Adaptive VAD Silence Auto-Commit</h3>
+                <p>Hands-free dictation: automatically commit text when silence follows speech.</p>
+              </div>
+              <label class="switch">
+                <input type="checkbox" id="check-vad-auto-commit">
+                <span class="slider"></span>
+              </label>
+            </div>
+
+            <div class="toggle-row">
+              <div>
                 <h3>Preserve Previous Clipboard Contents</h3>
                 <p>Restore previous clipboard text after auto-pasting is completed.</p>
               </div>
@@ -661,6 +713,12 @@
                 <span class="slider"></span>
               </label>
             </div>
+          </div>
+
+          <div class="setting-card">
+            <h3>Silence Auto-Commit Timeout</h3>
+            <p>Milliseconds of silence to wait before automatically auto-committing audio (Default: 800ms).</p>
+            <input type="number" id="input-silence-timeout" min="400" max="3000" step="50" value="800">
           </div>
 
           <div class="setting-card">
@@ -792,6 +850,19 @@
     const btnStop = document.getElementById("btn-stop");
     const btnCancel = document.getElementById("btn-cancel");
     const btnSettings = document.getElementById("btn-settings");
+    const streamingPreview = document.getElementById("streaming-preview");
+    const streamingText = document.getElementById("streaming-text");
+
+    listen("stream-partial-transcript", (event) => {
+      const text = event.payload;
+      if (text && text.trim().length > 0 && previousState === "recording") {
+        streamingText.innerText = text;
+        streamingPreview.style.display = "block";
+      } else {
+        streamingPreview.style.display = "none";
+        streamingText.innerText = "";
+      }
+    });
 
     btnSettings.addEventListener("click", () => {
       invoke("open_settings_window");
@@ -820,6 +891,11 @@
     setInterval(pollState, 150);
 
     function updatePillUI(state, model) {
+      if (state !== "recording" && streamingPreview) {
+        streamingPreview.style.display = "none";
+        streamingText.innerText = "";
+      }
+
       pillDot.className = "status-dot " + (
         state === "recording" ? "recording" :
         state === "transcribing" ? "transcribing" :
@@ -977,6 +1053,9 @@
           document.getElementById("check-autostart").checked = settings.launch_at_startup;
           document.getElementById("input-delay-ms").value = settings.clipboard_delay_ms;
           document.getElementById("hotkey-mode-select").value = settings.hotkey_mode;
+          document.getElementById("check-streaming-enabled").checked = settings.streaming_enabled ?? true;
+          document.getElementById("check-vad-auto-commit").checked = !!settings.auto_commit_silence;
+          document.getElementById("input-silence-timeout").value = settings.silence_timeout_ms || 800;
           document.getElementById("check-llm-enabled").checked = !!settings.llm_enabled;
           document.getElementById("input-llm-endpoint").value = settings.llm_endpoint || "http://127.0.0.1:11434";
           document.getElementById("llm-model-select").value = settings.llm_model || "qwen2.5:0.5b";
@@ -1126,6 +1205,9 @@
       currentSettings.clipboard_preserve = document.getElementById("check-clipboard-preserve").checked;
       currentSettings.launch_at_startup = document.getElementById("check-autostart").checked;
       currentSettings.clipboard_delay_ms = parseInt(document.getElementById("input-delay-ms").value) || 250;
+      currentSettings.streaming_enabled = document.getElementById("check-streaming-enabled").checked;
+      currentSettings.auto_commit_silence = document.getElementById("check-vad-auto-commit").checked;
+      currentSettings.silence_timeout_ms = parseInt(document.getElementById("input-silence-timeout").value) || 800;
       currentSettings.llm_enabled = document.getElementById("check-llm-enabled").checked;
       currentSettings.llm_endpoint = document.getElementById("input-llm-endpoint").value.trim() || "http://127.0.0.1:11434";
       currentSettings.llm_model = document.getElementById("llm-model-select").value;

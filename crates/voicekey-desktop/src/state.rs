@@ -63,6 +63,7 @@ pub enum ActorCommand {
 pub struct EngineHandle {
     cmd_tx: mpsc::Sender<ActorCommand>,
     state_rx: watch::Receiver<EngineState>,
+    partial_text_rx: watch::Receiver<String>,
 }
 
 impl EngineHandle {
@@ -107,6 +108,10 @@ impl EngineHandle {
 
     pub fn subscribe_state(&self) -> watch::Receiver<EngineState> {
         self.state_rx.clone()
+    }
+
+    pub fn subscribe_partial_text(&self) -> watch::Receiver<String> {
+        self.partial_text_rx.clone()
     }
 }
 
@@ -166,13 +171,14 @@ pub fn resolve_model_path(model_name: &str) -> Option<PathBuf> {
 pub fn spawn_actor() -> EngineHandle {
     let (cmd_tx, mut cmd_rx) = mpsc::channel::<ActorCommand>(32);
     let (state_tx, state_rx) = watch::channel(EngineState::Idle);
+    let (partial_tx, partial_rx) = watch::channel(String::new());
 
     let actor_cmd_tx = cmd_tx.clone();
     tauri::async_runtime::spawn(async move {
         let mut state = EngineState::Idle;
         let mut model_name = "base.en".to_string();
         let mut is_muted = false;
-        let mut active_recorder: Option<AudioRecorder> = None;
+        let mut active_recorder: Option<Arc<std::sync::Mutex<AudioRecorder>>> = None;
         let mut cached_engine: Option<(String, Arc<WhisperEngine>)> = None;
 
         info!("VoiceKey Tokio State Machine Actor started in Idle state.");
@@ -203,20 +209,123 @@ pub fn spawn_actor() -> EngineHandle {
                                 );
                                 continue;
                             }
-                            active_recorder = Some(recorder);
+                            let rec_arc = Arc::new(std::sync::Mutex::new(recorder));
+                            active_recorder = Some(Arc::clone(&rec_arc));
                             state = EngineState::Recording;
                             let _ = state_tx.send(state);
+
+                            // Pre-warm Whisper engine if not yet cached
+                            if cached_engine.is_none() {
+                                if let Some(path) = resolve_model_path(&model_name) {
+                                    let cfg = WhisperConfig {
+                                        model_path: path,
+                                        language: Some("en".into()),
+                                        threads: 4,
+                                        temperature: 0.0,
+                                        translate: false,
+                                        initial_prompt: None,
+                                        enable_normalization: true,
+                                        enable_spoken_punctuation: true,
+                                    };
+                                    if let Ok(eng) = WhisperEngine::load_from_file(cfg) {
+                                        cached_engine = Some((model_name.clone(), Arc::new(eng)));
+                                    }
+                                }
+                            }
+
+                            let settings = crate::settings::load_settings();
+                            if settings.streaming_enabled {
+                                let rec_handle = Arc::clone(&rec_arc);
+                                let eng_handle = cached_engine.as_ref().map(|(_, e)| Arc::clone(e));
+                                let cmd_sender = actor_cmd_tx.clone();
+                                let partial_sender = partial_tx.clone();
+
+                                tauri::async_runtime::spawn(async move {
+                                    let mut last_sample_len = 0;
+                                    let mut last_text = String::new();
+                                    let silence_limit_samples =
+                                        settings.silence_timeout_ms as usize * 16;
+
+                                    loop {
+                                        tokio::time::sleep(tokio::time::Duration::from_millis(250))
+                                            .await;
+
+                                        let (is_rec, samples) = {
+                                            if let Ok(guard) = rec_handle.lock() {
+                                                let rec = guard.is_recording();
+                                                let s = guard.peek_samples().unwrap_or_default();
+                                                (rec, s)
+                                            } else {
+                                                (false, Vec::new())
+                                            }
+                                        };
+
+                                        if !is_rec {
+                                            break;
+                                        }
+
+                                        let len = samples.len();
+                                        // Speculative inference if at least 500ms audio and 250ms since last check
+                                        if len >= 8000
+                                            && len.saturating_sub(last_sample_len) >= 4000
+                                        {
+                                            if let Some(ref eng) = eng_handle {
+                                                let start_idx = len.saturating_sub(160000); // 10s lookback
+                                                let window = samples[start_idx..].to_vec();
+                                                let eng_ref = Arc::clone(eng);
+
+                                                if let Ok(Ok(res)) =
+                                                    tokio::task::spawn_blocking(move || {
+                                                        eng_ref.transcribe(&window)
+                                                    })
+                                                    .await
+                                                {
+                                                    if !res.text.trim().is_empty()
+                                                        && res.text != last_text
+                                                    {
+                                                        last_text = res.text.clone();
+                                                        let _ = partial_sender.send(res.text);
+                                                    }
+                                                }
+                                                last_sample_len = len;
+                                            }
+                                        }
+
+                                        // Adaptive VAD Silence auto-commit
+                                        if settings.auto_commit_silence
+                                            && len >= 16000
+                                            && silence_limit_samples > 0
+                                            && len > silence_limit_samples
+                                        {
+                                            let tail = &samples[len - silence_limit_samples..];
+                                            let tail_rms =
+                                                voicekey_core::vad::EnergyVad::calculate_rms(tail);
+                                            let body = &samples[..len - silence_limit_samples];
+                                            let body_has_speech =
+                                                voicekey_core::vad::EnergyVad::calculate_rms(body)
+                                                    > 0.002;
+
+                                            if body_has_speech && tail_rms < 0.0006 {
+                                                info!("Adaptive VAD silence auto-commit triggered after {}ms silence", settings.silence_timeout_ms);
+                                                let _ = cmd_sender.send(ActorCommand::Toggle).await;
+                                                break;
+                                            }
+                                        }
+                                    }
+                                });
+                            }
                         }
                         EngineState::Recording => {
                             info!("State transition: Recording -> Transcribing");
+                            let _ = partial_tx.send(String::new());
                             voicekey_core::audio::play_sound_cue(
                                 voicekey_core::audio::SoundCue::Stop,
                             );
                             state = EngineState::Transcribing;
                             let _ = state_tx.send(state);
 
-                            let samples = if let Some(mut rec) = active_recorder.take() {
-                                rec.stop().unwrap_or_default()
+                            let samples = if let Some(rec) = active_recorder.take() {
+                                rec.lock().unwrap().stop().unwrap_or_default()
                             } else {
                                 Vec::new()
                             };
@@ -436,7 +545,7 @@ pub fn spawn_actor() -> EngineHandle {
                         };
                         let mut recorder = AudioRecorder::new(rec_config);
                         if let Ok(()) = recorder.start() {
-                            active_recorder = Some(recorder);
+                            active_recorder = Some(Arc::new(std::sync::Mutex::new(recorder)));
                             state = EngineState::Recording;
                             let _ = state_tx.send(state);
                         }
@@ -451,8 +560,8 @@ pub fn spawn_actor() -> EngineHandle {
                 ActorCommand::Cancel => {
                     if state == EngineState::Recording {
                         info!("Recording cancelled by user.");
-                        if let Some(mut rec) = active_recorder.take() {
-                            let _ = rec.stop();
+                        if let Some(rec) = active_recorder.take() {
+                            let _ = rec.lock().unwrap().stop();
                         }
                         state = EngineState::Idle;
                         let _ = state_tx.send(state);
@@ -467,8 +576,8 @@ pub fn spawn_actor() -> EngineHandle {
                     is_muted = !is_muted;
                     info!("Microphone mute state changed: is_muted={}", is_muted);
                     if is_muted && state == EngineState::Recording {
-                        if let Some(mut rec) = active_recorder.take() {
-                            let _ = rec.stop();
+                        if let Some(rec) = active_recorder.take() {
+                            let _ = rec.lock().unwrap().stop();
                         }
                         state = EngineState::Idle;
                         let _ = state_tx.send(state);
@@ -478,8 +587,8 @@ pub fn spawn_actor() -> EngineHandle {
                     is_muted = muted;
                     info!("Microphone mute explicitly set to: {}", is_muted);
                     if is_muted && state == EngineState::Recording {
-                        if let Some(mut rec) = active_recorder.take() {
-                            let _ = rec.stop();
+                        if let Some(rec) = active_recorder.take() {
+                            let _ = rec.lock().unwrap().stop();
                         }
                         state = EngineState::Idle;
                         let _ = state_tx.send(state);
@@ -497,7 +606,11 @@ pub fn spawn_actor() -> EngineHandle {
         }
     });
 
-    EngineHandle { cmd_tx, state_rx }
+    EngineHandle {
+        cmd_tx,
+        state_rx,
+        partial_text_rx: partial_rx,
+    }
 }
 
 #[cfg(test)]

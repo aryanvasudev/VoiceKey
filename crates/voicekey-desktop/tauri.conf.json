@@ -17,7 +17,7 @@
         "label": "overlay",
         "url": "index.html#overlay",
         "width": 320,
-        "height": 48,
+        "height": 100,
         "center": false,
         "resizable": false,
         "visible": false,

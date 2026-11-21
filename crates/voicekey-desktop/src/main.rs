@@ -7,7 +7,7 @@ mod settings;
 mod state;
 mod tray;
 
-use tauri::Manager;
+use tauri::{Emitter, Manager};
 use tracing::{error, info};
 
 use crate::state::spawn_actor;
@@ -118,6 +118,16 @@ fn main() {
                             }
                         }
                     }
+                }
+            });
+
+            // Background watcher for partial streaming transcripts
+            let app_handle_for_partial = app.handle().clone();
+            let mut partial_rx = engine_for_setup.subscribe_partial_text();
+            tauri::async_runtime::spawn(async move {
+                while partial_rx.changed().await.is_ok() {
+                    let text = partial_rx.borrow().clone();
+                    let _ = app_handle_for_partial.emit("stream-partial-transcript", text);
                 }
             });
 
