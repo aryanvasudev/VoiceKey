@@ -17,7 +17,7 @@ pub struct VadConfig {
 impl Default for VadConfig {
     fn default() -> Self {
         Self {
-            energy_threshold: 0.005,
+            energy_threshold: 0.0002,
             frame_size: 512,
             padding_frames: 3,
         }
@@ -60,6 +60,12 @@ impl EnergyVad {
     pub fn has_speech(&self, samples: &[f32]) -> bool {
         if samples.is_empty() {
             return false;
+        }
+
+        let rms = Self::calculate_rms(samples);
+        let peak = Self::calculate_peak(samples);
+        if rms >= self.config.energy_threshold || peak >= 0.001 {
+            return true;
         }
 
         // Check if any frame exceeds the energy threshold

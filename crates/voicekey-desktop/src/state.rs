@@ -142,6 +142,23 @@ pub fn resolve_model_path(model_name: &str) -> Option<PathBuf> {
         }
     }
 
+    // Fallback: check if any valid GGML .bin model exists in the search directories
+    for dir in &search_dirs {
+        if let Ok(entries) = std::fs::read_dir(dir) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.extension().and_then(|e| e.to_str()) == Some("bin") {
+                    tracing::info!(
+                        "Requested model '{}' not found, falling back to available model: {}",
+                        model_name,
+                        path.display()
+                    );
+                    return Some(path);
+                }
+            }
+        }
+    }
+
     None
 }
 
@@ -151,7 +168,7 @@ pub fn spawn_actor() -> EngineHandle {
     let (state_tx, state_rx) = watch::channel(EngineState::Idle);
 
     let actor_cmd_tx = cmd_tx.clone();
-    tokio::spawn(async move {
+    tauri::async_runtime::spawn(async move {
         let mut state = EngineState::Idle;
         let mut model_name = "base.en".to_string();
         let mut is_muted = false;
@@ -170,6 +187,7 @@ pub fn spawn_actor() -> EngineHandle {
                                 continue;
                             }
                             info!("State transition: Idle -> Recording");
+                            voicekey_core::audio::play_sound_cue(voicekey_core::audio::SoundCue::Start);
                             let rec_config = AudioRecorderConfig {
                                 device_name: None,
                                 pre_roll_ms: 200,
@@ -178,6 +196,7 @@ pub fn spawn_actor() -> EngineHandle {
                             let mut recorder = AudioRecorder::new(rec_config);
                             if let Err(e) = recorder.start() {
                                 error!("Failed to start audio recording: {e}");
+                                voicekey_core::audio::play_sound_cue(voicekey_core::audio::SoundCue::Error);
                                 continue;
                             }
                             active_recorder = Some(recorder);
@@ -186,6 +205,7 @@ pub fn spawn_actor() -> EngineHandle {
                         }
                         EngineState::Recording => {
                             info!("State transition: Recording -> Transcribing");
+                            voicekey_core::audio::play_sound_cue(voicekey_core::audio::SoundCue::Stop);
                             state = EngineState::Transcribing;
                             let _ = state_tx.send(state);
 
@@ -203,9 +223,25 @@ pub fn spawn_actor() -> EngineHandle {
                             }
 
                             // Voice Activity Detection Check
+                            let rms = voicekey_core::vad::EnergyVad::calculate_rms(&samples);
+                            let peak = voicekey_core::vad::EnergyVad::calculate_peak(&samples);
+                            let duration_s = samples.len() as f64 / 16000.0;
+                            info!(
+                                "Captured {} samples ({:.2}s). RMS: {:.6}, Peak: {:.6}",
+                                samples.len(),
+                                duration_s,
+                                rms,
+                                peak
+                            );
+
                             let vad = EnergyVad::default();
-                            if !vad.has_speech(&samples) {
-                                info!("No speech detected by VAD, returning to Idle.");
+                            let has_voice = vad.has_speech(&samples);
+                            if !has_voice && duration_s < 0.5 {
+                                info!(
+                                    "No speech detected (RMS: {:.6}, Peak: {:.6}, Duration: {:.2}s), returning to Idle.",
+                                    rms, peak, duration_s
+                                );
+                                voicekey_core::audio::play_sound_cue(voicekey_core::audio::SoundCue::Error);
                                 state = EngineState::Idle;
                                 let _ = state_tx.send(state);
                                 continue;
@@ -291,16 +327,30 @@ pub fn spawn_actor() -> EngineHandle {
                             if !result.text.is_empty() {
                                 state = EngineState::Pasting;
                                 let _ = state_tx.send(state);
+                                voicekey_core::audio::play_sound_cue(voicekey_core::audio::SoundCue::Complete);
 
-                                let text_to_paste = result.text;
-                                let _ = tokio::task::spawn_blocking(move || {
-                                    let _ = ClipboardManager::paste_and_restore(
+                                let text_to_paste = result.text.clone();
+                                let paste_res = tokio::task::spawn_blocking(move || {
+                                    ClipboardManager::paste_and_restore(
                                         &text_to_paste,
-                                        true,
+                                        false, // Keep transcribed text in clipboard
                                         250,
-                                    );
+                                    )
                                 })
                                 .await;
+                                info!("Auto-paste dispatch result: {:?}", paste_res);
+
+                                #[cfg(target_os = "linux")]
+                                {
+                                    let preview = if result.text.len() <= 50 {
+                                        result.text.clone()
+                                    } else {
+                                        format!("{}...", &result.text[..47])
+                                    };
+                                    let _ = std::process::Command::new("notify-send")
+                                        .args(["-a", "VoiceKey", "-t", "2000", "VoiceKey", &format!("✅ Pasted: \"{}\"", preview)])
+                                        .spawn();
+                                }
                             }
 
                             state = EngineState::Idle;

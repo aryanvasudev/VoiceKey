@@ -43,69 +43,105 @@
       justify-content: center;
       width: 100vw;
       height: 100vh;
-      padding: 6px;
+      padding: 0;
+      background: transparent;
+      overflow: hidden;
     }
 
     .pill-card {
-      display: inline-flex;
+      display: flex;
       align-items: center;
-      gap: 12px;
-      padding: 8px 16px;
-      background: var(--bg-pill);
-      border: 1px solid var(--border-pill);
+      justify-content: space-between;
+      width: 312px;
+      height: 40px;
+      padding: 0 12px;
+      background: rgba(14, 16, 22, 0.94);
+      border: 1px solid rgba(255, 255, 255, 0.14);
       border-radius: 9999px;
-      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6), 0 0 1px rgba(255, 255, 255, 0.2);
-      backdrop-filter: blur(16px);
+      box-shadow: 0 14px 38px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(255, 255, 255, 0.08);
+      backdrop-filter: blur(28px) saturate(190%);
       cursor: grab;
-      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+      user-select: none;
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+    .pill-card:hover {
+      border-color: rgba(255, 255, 255, 0.24);
+      box-shadow: 0 16px 44px rgba(0, 0, 0, 0.75), 0 0 0 1px rgba(255, 255, 255, 0.12);
     }
     .pill-card:active {
       cursor: grabbing;
     }
 
+    .drag-grip {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 16px;
+      height: 24px;
+      color: rgba(255, 255, 255, 0.35);
+      cursor: grab;
+      transition: color 0.15s ease;
+      flex-shrink: 0;
+    }
+    .drag-grip:hover {
+      color: rgba(255, 255, 255, 0.85);
+    }
+
     .status-dot {
-      width: 12px;
-      height: 12px;
+      width: 9px;
+      height: 9px;
       border-radius: 50%;
       background: var(--green);
       box-shadow: 0 0 10px var(--green);
       transition: all 0.3s ease;
+      flex-shrink: 0;
     }
     .status-dot.recording {
-      background: var(--red);
-      box-shadow: 0 0 14px var(--red);
+      background: #f43f5e;
+      box-shadow: 0 0 12px #f43f5e, 0 0 24px rgba(244, 63, 94, 0.5);
       animation: pulse-recording 1.2s infinite ease-in-out;
     }
     .status-dot.transcribing {
-      background: var(--amber);
-      box-shadow: 0 0 12px var(--amber);
+      background: #f59e0b;
+      box-shadow: 0 0 12px #f59e0b, 0 0 20px rgba(245, 158, 11, 0.4);
       animation: pulse-transcribing 0.8s infinite alternate;
+    }
+    .status-dot.pasting {
+      background: #10b981;
+      box-shadow: 0 0 14px #10b981;
     }
 
     @keyframes pulse-recording {
       0% { transform: scale(0.9); opacity: 0.8; }
-      50% { transform: scale(1.2); opacity: 1; }
+      50% { transform: scale(1.25); opacity: 1; }
       100% { transform: scale(0.9); opacity: 0.8; }
     }
     @keyframes pulse-transcribing {
-      0% { transform: scale(1.0); }
-      100% { transform: scale(1.3); }
+      0% { transform: scale(0.95); opacity: 0.7; }
+      100% { transform: scale(1.25); opacity: 1; }
     }
 
     .pill-info {
       display: flex;
       flex-direction: column;
+      justify-content: center;
       min-width: 90px;
+      margin-left: 2px;
+      cursor: grab;
     }
     .pill-title {
-      font-size: 13px;
+      font-size: 12px;
       font-weight: 600;
-      letter-spacing: 0.3px;
+      letter-spacing: 0.2px;
+      line-height: 1.15;
+      color: #f8fafc;
     }
     .pill-timer {
-      font-size: 11px;
-      color: var(--text-muted);
+      font-size: 10.5px;
+      color: #94a3b8;
       font-variant-numeric: tabular-nums;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      line-height: 1.15;
     }
 
     /* Live Audio Waveform animation */
@@ -113,26 +149,28 @@
       display: none;
       align-items: center;
       gap: 3px;
-      height: 22px;
+      height: 16px;
+      padding: 0 4px;
     }
     .waveform.active {
       display: flex;
     }
     .waveform-bar {
-      width: 3px;
-      height: 6px;
-      background: var(--red);
+      width: 2.5px;
+      height: 5px;
+      background: linear-gradient(180deg, #fb7185, #e11d48);
       border-radius: 2px;
-      animation: wave-bar 0.8s ease-in-out infinite alternate;
+      animation: wave-bar 0.65s ease-in-out infinite alternate;
     }
-    .waveform-bar:nth-child(2) { animation-delay: 0.15s; height: 12px; }
-    .waveform-bar:nth-child(3) { animation-delay: 0.3s; height: 18px; }
-    .waveform-bar:nth-child(4) { animation-delay: 0.45s; height: 10px; }
-    .waveform-bar:nth-child(5) { animation-delay: 0.2s; height: 16px; }
+    .waveform-bar:nth-child(1) { animation-delay: 0.05s; height: 6px; }
+    .waveform-bar:nth-child(2) { animation-delay: 0.20s; height: 13px; }
+    .waveform-bar:nth-child(3) { animation-delay: 0.35s; height: 16px; }
+    .waveform-bar:nth-child(4) { animation-delay: 0.15s; height: 11px; }
+    .waveform-bar:nth-child(5) { animation-delay: 0.30s; height: 7px; }
 
     @keyframes wave-bar {
-      0% { transform: scaleY(0.4); }
-      100% { transform: scaleY(1.4); }
+      0% { transform: scaleY(0.35); opacity: 0.6; }
+      100% { transform: scaleY(1.35); opacity: 1; }
     }
 
     .pill-actions {
@@ -144,26 +182,28 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      width: 26px;
-      height: 26px;
+      width: 22px;
+      height: 22px;
       border-radius: 50%;
       background: rgba(255, 255, 255, 0.08);
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      color: var(--text-main);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      color: #cbd5e1;
       cursor: pointer;
       transition: all 0.15s ease;
     }
     .pill-btn:hover {
-      background: rgba(255, 255, 255, 0.2);
+      background: rgba(255, 255, 255, 0.22);
+      color: #fff;
       transform: scale(1.08);
     }
     .pill-btn.stop {
-      background: rgba(239, 68, 68, 0.25);
-      border-color: rgba(239, 68, 68, 0.4);
+      background: rgba(239, 68, 68, 0.3);
+      border-color: rgba(239, 68, 68, 0.5);
       color: #fca5a5;
     }
     .pill-btn.stop:hover {
-      background: rgba(239, 68, 68, 0.45);
+      background: rgba(239, 68, 68, 0.55);
+      color: #ffffff;
     }
 
     /* ============================================================
@@ -466,6 +506,16 @@
        ============================================================ -->
   <div id="overlay-container" data-tauri-drag-region>
     <div class="pill-card" id="pill-card" data-tauri-drag-region>
+      <div class="drag-grip" title="Drag to reposition anywhere" data-tauri-drag-region>
+        <svg width="8" height="14" viewBox="0 0 8 14" fill="currentColor">
+          <circle cx="2" cy="2" r="1.2" />
+          <circle cx="6" cy="2" r="1.2" />
+          <circle cx="2" cy="7" r="1.2" />
+          <circle cx="6" cy="7" r="1.2" />
+          <circle cx="2" cy="12" r="1.2" />
+          <circle cx="6" cy="12" r="1.2" />
+        </svg>
+      </div>
       <div class="status-dot" id="pill-dot"></div>
       
       <div class="pill-info" data-tauri-drag-region>
@@ -701,6 +751,9 @@
       invoke("cancel_dictation");
     });
 
+    let previousState = "idle";
+    let hideTimeout = null;
+
     // Real-time state polling
     async function pollState() {
       try {
@@ -710,12 +763,17 @@
         }
       } catch (e) {}
     }
-    setInterval(pollState, 300);
+    setInterval(pollState, 150);
 
     function updatePillUI(state, model) {
-      pillDot.className = "status-dot " + (state === "recording" ? "recording" : state === "transcribing" || state === "pasting" ? "transcribing" : "");
+      pillDot.className = "status-dot " + (
+        state === "recording" ? "recording" :
+        state === "transcribing" ? "transcribing" :
+        state === "pasting" ? "pasting" : ""
+      );
       
       if (state === "recording") {
+        if (hideTimeout) { clearTimeout(hideTimeout); hideTimeout = null; }
         pillTitle.innerText = "Listening...";
         waveform.className = "waveform active";
         btnStop.style.display = "flex";
@@ -728,34 +786,116 @@
             const m = String(Math.floor(elapsed / 60)).padStart(2, "0");
             const s = String(elapsed % 60).padStart(2, "0");
             pillTimer.innerText = `${m}:${s}`;
-          }, 500);
+          }, 250);
         }
       } else if (state === "transcribing") {
+        if (hideTimeout) { clearTimeout(hideTimeout); hideTimeout = null; }
         pillTitle.innerText = "Transcribing...";
-        pillTimer.innerText = model;
+        pillTimer.innerText = model || "Whisper";
         waveform.className = "waveform";
         btnStop.style.display = "none";
         btnCancel.style.display = "none";
         clearInterval(timerInterval);
         recordingStartTime = null;
       } else if (state === "pasting") {
-        pillTitle.innerText = "Pasting...";
-        pillTimer.innerText = "Active Window";
+        if (hideTimeout) { clearTimeout(hideTimeout); hideTimeout = null; }
+        pillTitle.innerText = "Pasted!";
+        pillTimer.innerText = "Done";
         waveform.className = "waveform";
         btnStop.style.display = "none";
         btnCancel.style.display = "none";
         clearInterval(timerInterval);
         recordingStartTime = null;
       } else {
-        pillTitle.innerText = "VoiceKey";
-        pillTimer.innerText = "Ready";
+        // Idle state
+        clearInterval(timerInterval);
+        recordingStartTime = null;
         waveform.className = "waveform";
         btnStop.style.display = "none";
         btnCancel.style.display = "none";
-        clearInterval(timerInterval);
-        recordingStartTime = null;
+
+        if (previousState === "pasting" || previousState === "transcribing") {
+          pillTitle.innerText = "Pasted!";
+          pillTimer.innerText = "Done";
+          pillDot.className = "status-dot pasting";
+          if (!hideTimeout) {
+            hideTimeout = setTimeout(() => {
+              invoke("hide_overlay");
+              pillTitle.innerText = "VoiceKey";
+              pillTimer.innerText = "Ready";
+              pillDot.className = "status-dot";
+              hideTimeout = null;
+            }, 1200);
+          }
+        } else {
+          pillTitle.innerText = "VoiceKey";
+          pillTimer.innerText = "Ready";
+          pillDot.className = "status-dot";
+        }
+      }
+
+      previousState = state;
+    }
+
+    // Native Drag Handle
+    const dragGrip = document.querySelector(".drag-grip");
+    const pillCard = document.getElementById("pill-card");
+    const pillInfo = document.querySelector(".pill-info");
+
+    let dragPollInterval = null;
+    let lastSavedX = null;
+    let lastSavedY = null;
+
+    async function checkAndSavePosition() {
+      try {
+        const pos = await invoke("get_overlay_position");
+        if (pos && typeof pos[0] === "number" && typeof pos[1] === "number") {
+          if (pos[0] !== lastSavedX || pos[1] !== lastSavedY) {
+            lastSavedX = pos[0];
+            lastSavedY = pos[1];
+            await invoke("save_overlay_position", { x: pos[0], y: pos[1] });
+          }
+        }
+      } catch (e) {}
+    }
+
+    function onDragStart(e) {
+      if (e.button === 0 && !e.target.closest("button")) {
+        invoke("start_drag");
+        // Start polling window position while user is moving it
+        if (!dragPollInterval) {
+          let unchangedCount = 0;
+          dragPollInterval = setInterval(async () => {
+            try {
+              const pos = await invoke("get_overlay_position");
+              if (pos && typeof pos[0] === "number" && typeof pos[1] === "number") {
+                if (pos[0] === lastSavedX && pos[1] === lastSavedY) {
+                  unchangedCount++;
+                  if (unchangedCount > 15) { // 1.5s stationary after move
+                    clearInterval(dragPollInterval);
+                    dragPollInterval = null;
+                  }
+                } else {
+                  unchangedCount = 0;
+                  lastSavedX = pos[0];
+                  lastSavedY = pos[1];
+                  await invoke("save_overlay_position", { x: pos[0], y: pos[1] });
+                }
+              }
+            } catch (err) {}
+          }, 100);
+        }
       }
     }
+
+    if (dragGrip) dragGrip.addEventListener("mousedown", onDragStart);
+    if (pillCard) pillCard.addEventListener("mousedown", onDragStart);
+    if (pillInfo) pillInfo.addEventListener("mousedown", onDragStart);
+
+    document.addEventListener("mouseup", () => {
+      setTimeout(checkAndSavePosition, 50);
+      setTimeout(checkAndSavePosition, 250);
+    });
 
     // ============================================================
     // Settings Tabs Navigation

@@ -7,7 +7,7 @@
     "frontendDist": "./ui"
   },
   "app": {
-    "withGlobalTauri": false,
+    "withGlobalTauri": true,
     "security": {
       "csp": null
     },
@@ -16,10 +16,11 @@
         "title": "VoiceKey Overlay",
         "label": "overlay",
         "url": "index.html#overlay",
-        "width": 340,
-        "height": 90,
+        "width": 320,
+        "height": 48,
+        "center": false,
         "resizable": false,
-        "visible": true,
+        "visible": false,
         "transparent": true,
         "decorations": false,
         "alwaysOnTop": true,
@@ -38,10 +39,7 @@
       }
     ]
   },
-  "plugins": {
-    "autostart": {},
-    "single-instance": {}
-  },
+  "plugins": {},
   "bundle": {
     "active": true,
     "targets": "all",

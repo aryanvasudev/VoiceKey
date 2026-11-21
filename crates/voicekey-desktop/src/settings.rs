@@ -16,6 +16,10 @@ pub struct SettingsPayload {
     pub clipboard_delay_ms: u64,
     pub custom_vocabulary: Vec<String>,
     pub launch_at_startup: bool,
+    #[serde(default)]
+    pub overlay_x: Option<f64>,
+    #[serde(default)]
+    pub overlay_y: Option<f64>,
 }
 
 impl Default for SettingsPayload {
@@ -36,6 +40,8 @@ impl Default for SettingsPayload {
                 "Kubernetes".into(),
             ],
             launch_at_startup: false,
+            overlay_x: None,
+            overlay_y: None,
         }
     }
 }

@@ -12,3 +12,6 @@ wheels/
 # Rust / Cargo
 target/
 Cargo.lock
+
+# Test audio recordings
+*.wav

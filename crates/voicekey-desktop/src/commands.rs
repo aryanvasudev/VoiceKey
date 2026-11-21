@@ -138,3 +138,91 @@ pub async fn open_settings_window(app: AppHandle) -> Result<(), String> {
     }
     Ok(())
 }
+
+#[tauri::command]
+pub fn start_drag(window: tauri::WebviewWindow) -> Result<(), String> {
+    window.start_dragging().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn get_overlay_position(window: tauri::WebviewWindow) -> Result<Option<(f64, f64)>, String> {
+    if let Ok(pos) = window.outer_position() {
+        if let Ok(scale) = window.scale_factor() {
+            let logical_x = pos.x as f64 / scale;
+            let logical_y = pos.y as f64 / scale;
+            return Ok(Some((logical_x, logical_y)));
+        }
+    }
+    Ok(None)
+}
+
+#[tauri::command]
+pub fn save_overlay_position(x: f64, y: f64) -> Result<(), String> {
+    if x >= 0.0 && y >= 0.0 {
+        let mut settings = load_settings();
+        settings.overlay_x = Some(x);
+        settings.overlay_y = Some(y);
+        let _ = persist_settings(&settings);
+        info!("Saved overlay window position: ({:.1}, {:.1})", x, y);
+    }
+    Ok(())
+}
+
+/// Reliably show and pin the floating overlay window at the user's chosen saved coordinates.
+/// Prevents window managers (e.g. GNOME Mutter on Wayland/XWayland) from resetting position near cursor.
+pub fn show_overlay_window(win: &tauri::WebviewWindow) {
+    let settings = load_settings();
+    let (target_x, target_y) = if let (Some(x), Some(y)) = (settings.overlay_x, settings.overlay_y) {
+        (x.max(0.0), y.max(0.0))
+    } else if let Ok(Some(monitor)) = win.current_monitor() {
+        let size = monitor.size();
+        let scale = monitor.scale_factor();
+        let mon_w = size.width as f64 / scale;
+        let win_w = 320.0;
+        let x = ((mon_w - win_w) / 2.0).max(0.0);
+        let y = 32.0;
+        (x, y)
+    } else {
+        (100.0, 32.0)
+    };
+
+    let pos = tauri::Position::Logical(tauri::LogicalPosition { x: target_x, y: target_y });
+
+    // 1. Pre-configure position prior to show
+    let _ = win.set_position(pos);
+
+    // 2. Map window and assert always-on-top
+    let _ = win.show();
+    let _ = win.set_always_on_top(true);
+
+    // 3. Immediately re-assert position
+    let _ = win.set_position(pos);
+
+    // 4. Debounce check after window manager has completed X11/Wayland MapRequest
+    let win_clone = win.clone();
+    tauri::async_runtime::spawn(async move {
+        tokio::time::sleep(std::time::Duration::from_millis(30)).await;
+        let _ = win_clone.set_position(pos);
+    });
+}
+
+#[tauri::command]
+pub fn hide_overlay(app: AppHandle) -> Result<(), String> {
+    if let Some(win) = app.get_webview_window("overlay") {
+        if let Ok(pos) = win.outer_position() {
+            if let Ok(scale) = win.scale_factor() {
+                let logical_x = pos.x as f64 / scale;
+                let logical_y = pos.y as f64 / scale;
+                if logical_x > 0.0 && logical_y > 0.0 {
+                    let mut settings = load_settings();
+                    settings.overlay_x = Some(logical_x);
+                    settings.overlay_y = Some(logical_y);
+                    let _ = persist_settings(&settings);
+                }
+            }
+        }
+        let _ = win.hide();
+    }
+    Ok(())
+}
+

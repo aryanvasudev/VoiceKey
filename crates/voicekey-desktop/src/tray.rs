@@ -195,8 +195,7 @@ pub fn setup_tray(
                     }
                     "overlay" => {
                         if let Some(win) = app.get_webview_window("overlay") {
-                            let _ = win.show();
-                            let _ = win.set_focus();
+                            crate::commands::show_overlay_window(&win);
                         }
                     }
                     "settings" => {

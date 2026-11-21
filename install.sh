@@ -120,7 +120,7 @@ log_step "1/5 Checking & installing system prerequisites..."
 if [[ "$SKIP_SUDO" == false ]]; then
     if command -v dnf >/dev/null 2>&1; then
         log_info "Detected Fedora / RHEL package manager (dnf)"
-        sudo dnf install -y alsa-lib-devel webkit2gtk4.1-devel libayatana-appindicator-gtk3-devel openssl-devel wl-clipboard libevdev libnotify 2>/dev/null || true
+        sudo dnf install -y alsa-lib-devel webkit2gtk4.1-devel libayatana-appindicator-gtk3 libayatana-appindicator-gtk3-devel libdbusmenu-gtk3 openssl-devel wl-clipboard libevdev libnotify 2>/dev/null || true
         log_success "System dependencies configured."
     elif command -v apt-get >/dev/null 2>&1; then
         log_info "Detected Debian / Ubuntu package manager (apt)"

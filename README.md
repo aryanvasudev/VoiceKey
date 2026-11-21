@@ -122,7 +122,7 @@ chmod +x scripts/install_linux_desktop.sh
   ```
 - **Fedora/RHEL:**
   ```bash
-  sudo dnf install -y alsa-lib-devel webkit2gtk4.1-devel libayatana-appindicator-gtk3-devel openssl-devel
+  sudo dnf install -y alsa-lib-devel webkit2gtk4.1-devel libayatana-appindicator-gtk3 libayatana-appindicator-gtk3-devel libdbusmenu-gtk3 openssl-devel
   ```
 - **Windows:**
   No extra C development libraries needed (WASAPI and Win32 `SendInput` are built into the Windows SDK).

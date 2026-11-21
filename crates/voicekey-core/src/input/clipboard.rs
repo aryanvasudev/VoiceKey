@@ -65,15 +65,20 @@ impl ClipboardManager {
         #[cfg(target_os = "linux")]
         {
             if std::env::var_os("WAYLAND_DISPLAY").is_some() {
-                if let Ok(status) = std::process::Command::new("wl-copy")
-                    .arg(text)
-                    .stdin(std::process::Stdio::null())
+                use std::io::Write;
+                if let Ok(mut child) = std::process::Command::new("wl-copy")
+                    .stdin(std::process::Stdio::piped())
                     .stdout(std::process::Stdio::null())
                     .stderr(std::process::Stdio::null())
-                    .status()
+                    .spawn()
                 {
-                    if status.success() {
-                        return Ok(());
+                    if let Some(mut stdin) = child.stdin.take() {
+                        let _ = stdin.write_all(text.as_bytes());
+                    }
+                    if let Ok(status) = child.wait() {
+                        if status.success() {
+                            return Ok(());
+                        }
                     }
                 }
             }
@@ -114,6 +119,9 @@ impl ClipboardManager {
 
         // 2. Write transcribed text to clipboard
         Self::set_text(text)?;
+
+        // Brief delay (40ms) allows Wayland / X11 compositor to register selection
+        thread::sleep(Duration::from_millis(40));
 
         // 3. Inject simulated Ctrl+V or Ctrl+Shift+V
         KeyInjector::inject_paste(is_terminal)?;

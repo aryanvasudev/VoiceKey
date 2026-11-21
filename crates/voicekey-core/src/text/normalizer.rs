@@ -11,7 +11,12 @@ static EXCESS_NEWLINES: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\n{3,}")
 /// Clean whitespace, strip hallucinated blank characters, and normalize capitalization.
 pub fn normalize_text(text: &str) -> String {
     let trimmed = text.trim();
-    if trimmed.is_empty() {
+    if trimmed.is_empty()
+        || trimmed.eq_ignore_ascii_case("[blank_audio]")
+        || trimmed.eq_ignore_ascii_case("[inaudible]")
+        || trimmed.eq_ignore_ascii_case("[silence]")
+        || trimmed.eq_ignore_ascii_case("[music]")
+    {
         return String::new();
     }
 

@@ -9,10 +9,41 @@ use evdev::uinput::VirtualDeviceBuilder;
 #[cfg(target_os = "linux")]
 use evdev::{AttributeSet, EventType, InputEvent, Key};
 
+#[cfg(target_os = "linux")]
+static PERSISTENT_UINPUT: std::sync::Mutex<Option<evdev::uinput::VirtualDevice>> =
+    std::sync::Mutex::new(None);
+
 /// Keyboard injector simulating hardware keystroke shortcuts (`Ctrl+V` or `Ctrl+Shift+V`).
 pub struct KeyInjector;
 
 impl KeyInjector {
+    /// Eagerly initialize the hardware keystroke injector virtual device.
+    pub fn init() {
+        #[cfg(target_os = "linux")]
+        {
+            let mut guard = match PERSISTENT_UINPUT.lock() {
+                Ok(g) => g,
+                Err(poisoned) => poisoned.into_inner(),
+            };
+            if guard.is_none() {
+                let mut keys = AttributeSet::<Key>::new();
+                for code in 1..=127 {
+                    keys.insert(Key::new(code));
+                }
+                if let Ok(builder) = VirtualDeviceBuilder::new() {
+                    if let Ok(dev) = builder
+                        .name("VoiceKey Virtual Keyboard")
+                        .with_keys(&keys)
+                        .and_then(|b| b.build())
+                    {
+                        tracing::info!("Eagerly initialized VoiceKey Virtual Keyboard device.");
+                        *guard = Some(dev);
+                    }
+                }
+            }
+        }
+    }
+
     /// Inject a paste keystroke sequence.
     ///
     /// If `is_terminal` is true, injects `Ctrl+Shift+V`.
@@ -38,66 +69,102 @@ impl KeyInjector {
 
     #[cfg(target_os = "linux")]
     fn inject_linux_uinput(is_terminal: bool) -> Result<(), CoreError> {
-        // Try creating /dev/uinput virtual keyboard
-        let mut keys = AttributeSet::<Key>::new();
-        keys.insert(Key::KEY_LEFTCTRL);
-        keys.insert(Key::KEY_LEFTSHIFT);
-        keys.insert(Key::KEY_V);
-
-        let builder = match VirtualDeviceBuilder::new() {
-            Ok(b) => b,
-            Err(e) => {
-                tracing::warn!(
-                    "Failed to open /dev/uinput ({e}), falling back to external tool..."
-                );
-                return Self::inject_linux_fallback(is_terminal);
-            }
+        let mut guard = match PERSISTENT_UINPUT.lock() {
+            Ok(g) => g,
+            Err(poisoned) => poisoned.into_inner(),
         };
 
-        let mut device = match builder
-            .name("VoiceKey Virtual Keyboard")
-            .with_keys(&keys)
-            .and_then(|b| b.build())
-        {
-            Ok(dev) => dev,
-            Err(e) => {
-                tracing::warn!(
-                    "Failed to build uinput device ({e}), falling back to external tool..."
-                );
-                return Self::inject_linux_fallback(is_terminal);
+        if guard.is_none() {
+            let mut keys = AttributeSet::<Key>::new();
+            // Provide full key set 1..=127 so systemd-udevd tags device with ID_INPUT_KEYBOARD=1
+            for code in 1..=127 {
+                keys.insert(Key::new(code));
             }
-        };
 
-        // Brief delay for compositor recognition
-        sleep(Duration::from_millis(50));
+            let builder = match VirtualDeviceBuilder::new() {
+                Ok(b) => b,
+                Err(e) => {
+                    tracing::warn!(
+                        "Failed to open /dev/uinput ({e}), falling back to external tool..."
+                    );
+                    return Self::inject_linux_fallback(is_terminal);
+                }
+            };
 
-        let ctrl_down = InputEvent::new(EventType::KEY, Key::KEY_LEFTCTRL.code(), 1);
-        let shift_down = InputEvent::new(EventType::KEY, Key::KEY_LEFTSHIFT.code(), 1);
-        let v_down = InputEvent::new(EventType::KEY, Key::KEY_V.code(), 1);
-        let v_up = InputEvent::new(EventType::KEY, Key::KEY_V.code(), 0);
-        let shift_up = InputEvent::new(EventType::KEY, Key::KEY_LEFTSHIFT.code(), 0);
-        let ctrl_up = InputEvent::new(EventType::KEY, Key::KEY_LEFTCTRL.code(), 0);
+            let dev = match builder
+                .name("VoiceKey Virtual Keyboard")
+                .with_keys(&keys)
+                .and_then(|b| b.build())
+            {
+                Ok(dev) => dev,
+                Err(e) => {
+                    tracing::warn!(
+                        "Failed to build uinput device ({e}), falling back to external tool..."
+                    );
+                    return Self::inject_linux_fallback(is_terminal);
+                }
+            };
 
-        if is_terminal {
-            device
-                .emit(&[ctrl_down, shift_down, v_down])
-                .map_err(|e| CoreError::Audio(format!("uinput emit error: {e}")))?;
-            sleep(Duration::from_millis(20));
-            device
-                .emit(&[v_up, shift_up, ctrl_up])
-                .map_err(|e| CoreError::Audio(format!("uinput emit error: {e}")))?;
-        } else {
-            device
-                .emit(&[ctrl_down, v_down])
-                .map_err(|e| CoreError::Audio(format!("uinput emit error: {e}")))?;
-            sleep(Duration::from_millis(20));
-            device
-                .emit(&[v_up, ctrl_up])
-                .map_err(|e| CoreError::Audio(format!("uinput emit error: {e}")))?;
+            *guard = Some(dev);
+            // Allow libinput and the Wayland compositor to recognize the new keyboard
+            sleep(Duration::from_millis(150));
         }
 
-        sleep(Duration::from_millis(20));
-        Ok(())
+        if let Some(ref mut device) = *guard {
+            let ctrl_down = InputEvent::new(EventType::KEY, Key::KEY_LEFTCTRL.code(), 1);
+            let shift_down = InputEvent::new(EventType::KEY, Key::KEY_LEFTSHIFT.code(), 1);
+            let v_down = InputEvent::new(EventType::KEY, Key::KEY_V.code(), 1);
+            let v_up = InputEvent::new(EventType::KEY, Key::KEY_V.code(), 0);
+            let shift_up = InputEvent::new(EventType::KEY, Key::KEY_LEFTSHIFT.code(), 0);
+            let ctrl_up = InputEvent::new(EventType::KEY, Key::KEY_LEFTCTRL.code(), 0);
+
+            if is_terminal {
+                device
+                    .emit(&[ctrl_down])
+                    .map_err(|e| CoreError::Audio(format!("uinput emit error: {e}")))?;
+                sleep(Duration::from_millis(15));
+                device
+                    .emit(&[shift_down])
+                    .map_err(|e| CoreError::Audio(format!("uinput emit error: {e}")))?;
+                sleep(Duration::from_millis(15));
+                device
+                    .emit(&[v_down])
+                    .map_err(|e| CoreError::Audio(format!("uinput emit error: {e}")))?;
+                sleep(Duration::from_millis(30));
+                device
+                    .emit(&[v_up])
+                    .map_err(|e| CoreError::Audio(format!("uinput emit error: {e}")))?;
+                sleep(Duration::from_millis(15));
+                device
+                    .emit(&[shift_up])
+                    .map_err(|e| CoreError::Audio(format!("uinput emit error: {e}")))?;
+                sleep(Duration::from_millis(15));
+                device
+                    .emit(&[ctrl_up])
+                    .map_err(|e| CoreError::Audio(format!("uinput emit error: {e}")))?;
+            } else {
+                device
+                    .emit(&[ctrl_down])
+                    .map_err(|e| CoreError::Audio(format!("uinput emit error: {e}")))?;
+                sleep(Duration::from_millis(15));
+                device
+                    .emit(&[v_down])
+                    .map_err(|e| CoreError::Audio(format!("uinput emit error: {e}")))?;
+                sleep(Duration::from_millis(30));
+                device
+                    .emit(&[v_up])
+                    .map_err(|e| CoreError::Audio(format!("uinput emit error: {e}")))?;
+                sleep(Duration::from_millis(15));
+                device
+                    .emit(&[ctrl_up])
+                    .map_err(|e| CoreError::Audio(format!("uinput emit error: {e}")))?;
+            }
+
+            sleep(Duration::from_millis(20));
+            Ok(())
+        } else {
+            Self::inject_linux_fallback(is_terminal)
+        }
     }
 
     #[cfg(target_os = "linux")]
