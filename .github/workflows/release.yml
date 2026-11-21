@@ -51,6 +51,11 @@ jobs:
             libssl-dev \
             librsvg2-dev
 
+      - name: Configure Windows LLVM / libclang
+        if: runner.os == 'Windows'
+        run: |
+          echo "LIBCLANG_PATH=C:\Program Files\LLVM\bin" >> $env:GITHUB_ENV
+
       - name: Install Tauri CLI
         run: cargo install tauri-cli --version "^2.0.0" --locked
 

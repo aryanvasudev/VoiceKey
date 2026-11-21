@@ -51,6 +51,11 @@ jobs:
             libssl-dev \
             librsvg2-dev
 
+      - name: Configure Windows LLVM / libclang
+        if: runner.os == 'Windows'
+        run: |
+          echo "LIBCLANG_PATH=C:\Program Files\LLVM\bin" >> $env:GITHUB_ENV
+
       - name: Verify code formatting
         run: cargo fmt --all -- --check
 
