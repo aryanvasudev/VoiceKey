@@ -44,7 +44,7 @@ Detailed technical specifications and loophole mitigations are documented in [.p
   - Windows: Win32 `SendInput` hardware keystroke injection and `WH_KEYBOARD_LL` low-level hook (supporting Push-to-Talk and Toggle).
   - Linux: XDG Desktop Portal Global Shortcuts with IPC socket fallback for desktop shortcuts (`gsettings`, `sway`, `hyprland`).
   - Terminal-aware pasting (`Ctrl+Shift+V`) and 250ms debounced clipboard restoration.
-- [ ] **Phase 10: Tauri v2 Desktop Shell & System Tray**
+- [x] **Phase 10: Tauri v2 Desktop Shell & System Tray**
   - Tokio actor state machine (`Idle` <-> `Recording` <-> `Transcribing` <-> `Pasting`).
   - Native System Tray menu with color-coded status, model selection, and mute toggle.
   - Autostart integration via `tauri-plugin-autostart`.

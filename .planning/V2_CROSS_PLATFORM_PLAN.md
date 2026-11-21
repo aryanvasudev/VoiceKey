@@ -132,15 +132,15 @@ A review of naive cross-platform assumptions revealed several critical edge case
   - Linux: XDG Desktop Portal Global Shortcuts client with IPC socket fallback for desktop environment shortcuts (`gsettings`, `sway`, `hyprland`).
 
 ### Phase 4: Tauri v2 Desktop Shell & System Tray
-- [ ] Initialize `crates/voicekey-desktop` using Tauri v2.
-- [ ] Connect Tauri backend actors to `voicekey-core` state machine:
+- [x] Initialize `crates/voicekey-desktop` using Tauri v2.
+- [x] Connect Tauri backend actors to `voicekey-core` state machine:
   - States: `Idle` -> `Recording` -> `Transcribing` -> `Pasting` -> `Idle`.
-- [ ] Native System Tray menu:
+- [x] Native System Tray menu:
   - Visual status icon (green idle, red recording, yellow processing).
   - Quick model selector (`tiny.en`, `base.en`, `small.en`).
   - Mute/unmute microphone.
   - Settings and Quit buttons.
-- [ ] Autostart integration via `tauri-plugin-autostart` (Windows Registry & Linux `.desktop` / systemd).
+- [x] Autostart integration via `tauri-plugin-autostart` (Windows Registry & Linux `.desktop` / systemd).
 
 ### Phase 5: Floating Overlay Pill, Settings UI & Model Manager
 - [ ] Lightweight web frontend (Svelte or React + Tailwind CSS).

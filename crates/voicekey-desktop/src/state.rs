@@ -1,0 +1,407 @@
+//! Tokio actor state machine for VoiceKey desktop lifecycle.
+//!
+//! Lifecycle States:
+//! Idle <-> Recording <-> Transcribing <-> Pasting
+
+use std::path::PathBuf;
+use std::sync::Arc;
+use std::time::Instant;
+use tokio::sync::{mpsc, oneshot, watch};
+use tracing::{error, info, warn};
+
+use voicekey_core::audio::{AudioRecorder, AudioRecorderConfig};
+use voicekey_core::engine::{WhisperConfig, WhisperEngine};
+use voicekey_core::input::ClipboardManager;
+use voicekey_core::vad::EnergyVad;
+
+/// Current operational state of the VoiceKey engine.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum EngineState {
+    #[default]
+    Idle,
+    Recording,
+    Transcribing,
+    Pasting,
+}
+
+impl std::fmt::Display for EngineState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Idle => write!(f, "Idle"),
+            Self::Recording => write!(f, "Recording..."),
+            Self::Transcribing => write!(f, "Transcribing..."),
+            Self::Pasting => write!(f, "Pasting..."),
+        }
+    }
+}
+
+/// Status payload returned by the actor.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct EngineStatus {
+    pub state: EngineState,
+    pub model: String,
+    pub is_muted: bool,
+    pub active_device: Option<String>,
+}
+
+/// Commands accepted by the VoiceKey Tokio actor.
+#[derive(Debug)]
+pub enum ActorCommand {
+    Toggle,
+    Start,
+    Stop,
+    Cancel,
+    SetModel(String),
+    ToggleMute,
+    SetMute(bool),
+    GetStatus(oneshot::Sender<EngineStatus>),
+}
+
+/// Handle to communicate with the background state machine actor.
+#[derive(Clone)]
+pub struct EngineHandle {
+    cmd_tx: mpsc::Sender<ActorCommand>,
+    state_rx: watch::Receiver<EngineState>,
+}
+
+impl EngineHandle {
+    pub async fn toggle(&self) {
+        let _ = self.cmd_tx.send(ActorCommand::Toggle).await;
+    }
+
+    pub async fn start(&self) {
+        let _ = self.cmd_tx.send(ActorCommand::Start).await;
+    }
+
+    pub async fn stop(&self) {
+        let _ = self.cmd_tx.send(ActorCommand::Stop).await;
+    }
+
+    pub async fn cancel(&self) {
+        let _ = self.cmd_tx.send(ActorCommand::Cancel).await;
+    }
+
+    pub async fn set_model(&self, model: String) {
+        let _ = self.cmd_tx.send(ActorCommand::SetModel(model)).await;
+    }
+
+    pub async fn toggle_mute(&self) {
+        let _ = self.cmd_tx.send(ActorCommand::ToggleMute).await;
+    }
+
+    #[allow(dead_code)]
+    pub async fn set_mute(&self, muted: bool) {
+        let _ = self.cmd_tx.send(ActorCommand::SetMute(muted)).await;
+    }
+
+    #[allow(dead_code)]
+    pub async fn get_status(&self) -> Option<EngineStatus> {
+        let (tx, rx) = oneshot::channel();
+        if self.cmd_tx.send(ActorCommand::GetStatus(tx)).await.is_ok() {
+            rx.await.ok()
+        } else {
+            None
+        }
+    }
+
+    pub fn subscribe_state(&self) -> watch::Receiver<EngineState> {
+        self.state_rx.clone()
+    }
+}
+
+/// Resolve path to GGML model file or preset.
+pub fn resolve_model_path(model_name: &str) -> Option<PathBuf> {
+    let p = PathBuf::from(model_name);
+    if p.exists() {
+        return Some(p);
+    }
+
+    let mut search_dirs = Vec::new();
+    if let Some(d) = dirs::data_dir() {
+        search_dirs.push(d.join("voicekey").join("models"));
+    }
+    if let Some(c) = dirs::cache_dir() {
+        search_dirs.push(c.join("voicekey").join("models"));
+    }
+    search_dirs.push(PathBuf::from("/tmp/voicekey/models"));
+
+    let candidates = [
+        format!("ggml-{}.bin", model_name),
+        format!("ggml-{}-q5_0.bin", model_name),
+        format!("{}.bin", model_name),
+        model_name.to_string(),
+    ];
+
+    for dir in &search_dirs {
+        for candidate in &candidates {
+            let candidate_path = dir.join(candidate);
+            if candidate_path.exists() {
+                return Some(candidate_path);
+            }
+        }
+    }
+
+    None
+}
+
+/// Spawn the Tokio actor state machine task.
+pub fn spawn_actor() -> EngineHandle {
+    let (cmd_tx, mut cmd_rx) = mpsc::channel::<ActorCommand>(32);
+    let (state_tx, state_rx) = watch::channel(EngineState::Idle);
+
+    let actor_cmd_tx = cmd_tx.clone();
+    tokio::spawn(async move {
+        let mut state = EngineState::Idle;
+        let mut model_name = "base.en".to_string();
+        let mut is_muted = false;
+        let mut active_recorder: Option<AudioRecorder> = None;
+        let mut cached_engine: Option<(String, Arc<WhisperEngine>)> = None;
+
+        info!("VoiceKey Tokio State Machine Actor started in Idle state.");
+
+        while let Some(cmd) = cmd_rx.recv().await {
+            match cmd {
+                ActorCommand::Toggle => {
+                    match state {
+                        EngineState::Idle => {
+                            if is_muted {
+                                info!("Dictation toggle ignored: microphone is muted.");
+                                continue;
+                            }
+                            info!("State transition: Idle -> Recording");
+                            let rec_config = AudioRecorderConfig {
+                                device_name: None,
+                                pre_roll_ms: 200,
+                                target_sample_rate: 16000,
+                            };
+                            let mut recorder = AudioRecorder::new(rec_config);
+                            if let Err(e) = recorder.start() {
+                                error!("Failed to start audio recording: {e}");
+                                continue;
+                            }
+                            active_recorder = Some(recorder);
+                            state = EngineState::Recording;
+                            let _ = state_tx.send(state);
+                        }
+                        EngineState::Recording => {
+                            info!("State transition: Recording -> Transcribing");
+                            state = EngineState::Transcribing;
+                            let _ = state_tx.send(state);
+
+                            let samples = if let Some(mut rec) = active_recorder.take() {
+                                rec.stop().unwrap_or_default()
+                            } else {
+                                Vec::new()
+                            };
+
+                            if samples.is_empty() {
+                                warn!("No audio samples captured.");
+                                state = EngineState::Idle;
+                                let _ = state_tx.send(state);
+                                continue;
+                            }
+
+                            // Voice Activity Detection Check
+                            let vad = EnergyVad::default();
+                            if !vad.has_speech(&samples) {
+                                info!("No speech detected by VAD, returning to Idle.");
+                                state = EngineState::Idle;
+                                let _ = state_tx.send(state);
+                                continue;
+                            }
+
+                            // Load or retrieve cached Whisper engine
+                            let engine = if let Some((ref cached_name, ref eng)) = cached_engine {
+                                if cached_name == &model_name {
+                                    Some(Arc::clone(eng))
+                                } else {
+                                    None
+                                }
+                            } else {
+                                None
+                            };
+
+                            let engine = match engine {
+                                Some(eng) => eng,
+                                None => {
+                                    if let Some(path) = resolve_model_path(&model_name) {
+                                        let cfg = WhisperConfig {
+                                            model_path: path,
+                                            language: Some("en".into()),
+                                            threads: 4,
+                                            temperature: 0.0,
+                                            translate: false,
+                                            initial_prompt: None,
+                                            enable_normalization: true,
+                                            enable_spoken_punctuation: true,
+                                        };
+                                        match WhisperEngine::load_from_file(cfg) {
+                                            Ok(eng) => {
+                                                let arc_eng = Arc::new(eng);
+                                                cached_engine = Some((model_name.clone(), Arc::clone(&arc_eng)));
+                                                arc_eng
+                                            }
+                                            Err(e) => {
+                                                error!("Failed to load Whisper model: {e}");
+                                                state = EngineState::Idle;
+                                                let _ = state_tx.send(state);
+                                                continue;
+                                            }
+                                        }
+                                    } else {
+                                        warn!("Whisper model '{}' not found on disk.", model_name);
+                                        state = EngineState::Idle;
+                                        let _ = state_tx.send(state);
+                                        continue;
+                                    }
+                                }
+                            };
+
+                            // Transcribe in worker thread
+                            let t0 = Instant::now();
+                            let result = match tokio::task::spawn_blocking(move || engine.transcribe(&samples)).await {
+                                Ok(Ok(res)) => res,
+                                Ok(Err(e)) => {
+                                    error!("Transcription failed: {e}");
+                                    state = EngineState::Idle;
+                                    let _ = state_tx.send(state);
+                                    continue;
+                                }
+                                Err(e) => {
+                                    error!("Task join error: {e}");
+                                    state = EngineState::Idle;
+                                    let _ = state_tx.send(state);
+                                    continue;
+                                }
+                            };
+                            info!("Transcription completed in {:.2}s: '{}'", t0.elapsed().as_secs_f64(), result.text);
+
+                            if !result.text.is_empty() {
+                                state = EngineState::Pasting;
+                                let _ = state_tx.send(state);
+
+                                let text_to_paste = result.text;
+                                let _ = tokio::task::spawn_blocking(move || {
+                                    let _ = ClipboardManager::paste_and_restore(&text_to_paste, true, 250);
+                                }).await;
+                            }
+
+                            state = EngineState::Idle;
+                            let _ = state_tx.send(state);
+                        }
+                        _ => {
+                            warn!("Toggle ignored during {:?} state.", state);
+                        }
+                    }
+                }
+                ActorCommand::Start => {
+                    if state == EngineState::Idle && !is_muted {
+                        info!("State transition: Idle -> Recording (Explicit Start)");
+                        let rec_config = AudioRecorderConfig {
+                            device_name: None,
+                            pre_roll_ms: 200,
+                            target_sample_rate: 16000,
+                        };
+                        let mut recorder = AudioRecorder::new(rec_config);
+                        if let Ok(()) = recorder.start() {
+                            active_recorder = Some(recorder);
+                            state = EngineState::Recording;
+                            let _ = state_tx.send(state);
+                        }
+                    }
+                }
+                ActorCommand::Stop => {
+                    if state == EngineState::Recording {
+                        // Re-trigger Toggle logic to complete transcription & auto-paste
+                        let _ = actor_cmd_tx.send(ActorCommand::Toggle).await;
+                    }
+                }
+                ActorCommand::Cancel => {
+                    if state == EngineState::Recording {
+                        info!("Recording cancelled by user.");
+                        if let Some(mut rec) = active_recorder.take() {
+                            let _ = rec.stop();
+                        }
+                        state = EngineState::Idle;
+                        let _ = state_tx.send(state);
+                    }
+                }
+                ActorCommand::SetModel(new_model) => {
+                    info!("Switched active Whisper model to: {}", new_model);
+                    model_name = new_model;
+                    cached_engine = None; // Reset cached model
+                }
+                ActorCommand::ToggleMute => {
+                    is_muted = !is_muted;
+                    info!("Microphone mute state changed: is_muted={}", is_muted);
+                    if is_muted && state == EngineState::Recording {
+                        if let Some(mut rec) = active_recorder.take() {
+                            let _ = rec.stop();
+                        }
+                        state = EngineState::Idle;
+                        let _ = state_tx.send(state);
+                    }
+                }
+                ActorCommand::SetMute(muted) => {
+                    is_muted = muted;
+                    info!("Microphone mute explicitly set to: {}", is_muted);
+                    if is_muted && state == EngineState::Recording {
+                        if let Some(mut rec) = active_recorder.take() {
+                            let _ = rec.stop();
+                        }
+                        state = EngineState::Idle;
+                        let _ = state_tx.send(state);
+                    }
+                }
+                ActorCommand::GetStatus(reply_tx) => {
+                    let _ = reply_tx.send(EngineStatus {
+                        state,
+                        model: model_name.clone(),
+                        is_muted,
+                        active_device: None,
+                    });
+                }
+            }
+        }
+    });
+
+    EngineHandle { cmd_tx, state_rx }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_state_machine_initial_status() {
+        let handle = spawn_actor();
+        let status = handle.get_status().await.expect("Expected status");
+        assert_eq!(status.state, EngineState::Idle);
+        assert_eq!(status.model, "base.en");
+        assert!(!status.is_muted);
+    }
+
+    #[tokio::test]
+    async fn test_state_machine_mute_toggle() {
+        let handle = spawn_actor();
+        handle.toggle_mute().await;
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+        let status = handle.get_status().await.expect("Expected status");
+        assert!(status.is_muted);
+
+        handle.toggle_mute().await;
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+        let status2 = handle.get_status().await.expect("Expected status");
+        assert!(!status2.is_muted);
+    }
+
+    #[tokio::test]
+    async fn test_state_machine_model_selection() {
+        let handle = spawn_actor();
+        handle.set_model("tiny.en".into()).await;
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+        let status = handle.get_status().await.expect("Expected status");
+        assert_eq!(status.model, "tiny.en");
+    }
+}
