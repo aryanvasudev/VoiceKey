@@ -69,3 +69,21 @@ Detailed technical specifications and loophole mitigations are documented in [.p
   - Settings Activity with in-app model downloader, live progress, and SHA-256 verification.
   - Haptic feedback, spoken punctuation, auto-normalization, and custom vocabulary dictionary.
   - Production APK packaging script (`package_android_apk.sh`) and F-Droid / Fastlane metadata.
+
+## Milestone 3: On-Device AI Commands & Power Ecosystem
+
+Detailed technical specifications and loophole mitigations are documented in [.planning/V2_CROSS_PLATFORM_PLAN.md](file:///home/aryan/Documents/Projects/VoiceKey/.planning/V2_CROSS_PLATFORM_PLAN.md).
+
+- [ ] **Phase 16: Micro-LLM Post-Processing & Smart Dictation**
+  - Cross-platform micro-LLM inference engine integration (Qwen2.5-0.5B for ultra-fast/Android, Llama-3.2-1B for balanced editing, Qwen2.5-1.5B for code, plus local Ollama endpoint support).
+  - High-performance deterministic fast-path (Whisper only, < 150ms) vs. Triggered AI Mode (`Alt+Hotkey` or spoken `"VoiceKey [command]"` prefix).
+  - Core transforms: Bullet point structuring, filler word & stutter removal, tone adjustment (casual/professional), and voice-to-code syntax translation.
+  - Model selector and in-app GGUF model manager in Desktop & Android settings.
+- [ ] **Phase 17: Low-Latency Streaming Transcription & Speculative Output**
+  - Real-time partial transcript streaming into overlay visualizer with sub-100ms perceived latency.
+  - Adaptive VAD silence hysteresis and chunked inference windowing.
+- [ ] **Phase 18: Wireless Remote Microphone (Android ↔ Desktop)**
+  - Local Wi-Fi / mDNS zero-cloud pairing: use Android device as a low-latency wireless microphone for Linux/Windows desktops.
+  - Bidirectional dictionary sync: share custom vocabulary and hotwords across devices.
+- [ ] **Phase 19: Multilingual Speech & Instant Translation**
+  - Automatic language detection and real-time translation into English using multilingual Whisper and micro-LLM models.
