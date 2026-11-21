@@ -113,10 +113,17 @@ impl AdaptiveVad {
         match self.state {
             VadState::Idle => {
                 if rms >= self.config.speech_start_threshold {
-                    self.state = VadState::SpeechStarting {
-                        consecutive_speech_frames: 1,
-                    };
-                    VadEvent::Silence
+                    if self.config.min_speech_frames <= 1 {
+                        self.state = VadState::Speaking {
+                            total_speech_frames: 1,
+                        };
+                        VadEvent::SpeechStarted
+                    } else {
+                        self.state = VadState::SpeechStarting {
+                            consecutive_speech_frames: 1,
+                        };
+                        VadEvent::Silence
+                    }
                 } else {
                     VadEvent::Silence
                 }
@@ -151,6 +158,12 @@ impl AdaptiveVad {
                         total_speech_frames: total_speech_frames + 1,
                     };
                     VadEvent::Speaking { rms, peak }
+                } else if self.config.silence_hysteresis_frames <= 1 {
+                    let total_ms = (total_speech_frames as f32 * frame_ms) as u32;
+                    self.state = VadState::Idle;
+                    VadEvent::UtteranceComplete {
+                        total_speech_duration_ms: total_ms,
+                    }
                 } else {
                     self.state = VadState::SilenceHysteresis {
                         silence_frames: 1,
@@ -164,7 +177,7 @@ impl AdaptiveVad {
                 silence_frames,
                 total_speech_frames,
             } => {
-                if rms >= self.config.speech_start_threshold {
+                if rms >= self.config.speech_hold_threshold {
                     // User resumed speaking within hysteresis pause window
                     self.state = VadState::Speaking {
                         total_speech_frames: total_speech_frames + silence_frames + 1,
@@ -254,6 +267,37 @@ mod tests {
                 assert!(total_speech_duration_ms > 0);
             }
             other => panic!("Expected UtteranceComplete, got {:?}", other),
+        }
+        assert!(!vad.is_speaking());
+    }
+
+    #[test]
+    fn test_adaptive_vad_single_frame_thresholds() {
+        let config = AdaptiveVadConfig {
+            frame_size: 100,
+            speech_start_threshold: 0.1,
+            speech_hold_threshold: 0.05,
+            min_speech_frames: 1,
+            silence_hysteresis_frames: 1,
+            sample_rate: 1000,
+        };
+        let mut vad = AdaptiveVad::new(config);
+
+        let speech = vec![0.2f32; 100];
+        let silence = vec![0.0f32; 100];
+
+        // Frame 1 speech -> should immediately emit SpeechStarted
+        assert_eq!(vad.process_frame(&speech), VadEvent::SpeechStarted);
+        assert!(vad.is_speaking());
+
+        // Frame 2 silence -> hysteresis is 1, should immediately emit UtteranceComplete
+        match vad.process_frame(&silence) {
+            VadEvent::UtteranceComplete {
+                total_speech_duration_ms,
+            } => {
+                assert_eq!(total_speech_duration_ms, 100);
+            }
+            other => panic!("Expected immediate UtteranceComplete, got {:?}", other),
         }
         assert!(!vad.is_speaking());
     }

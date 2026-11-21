@@ -826,6 +826,7 @@ fn handle_transform(text: String, mode: String, endpoint: String, model: String)
     Ok(())
 }
 
+#[allow(clippy::chunks_exact_to_as_chunks)]
 fn handle_stream(
     duration: Option<f64>,
     model: String,
@@ -911,8 +912,8 @@ fn handle_stream(
     let running = Arc::new(AtomicBool::new(true));
     let r = running.clone();
 
-    // Spawn non-blocking Enter key listener if duration is None
-    if duration.is_none() && !auto_commit {
+    // Spawn non-blocking Enter key listener whenever duration is None
+    if duration.is_none() {
         std::thread::spawn(move || {
             let mut line = String::new();
             let _ = io::stdin().read_line(&mut line);
@@ -922,6 +923,7 @@ fn handle_stream(
 
     let start_time = Instant::now();
     let mut last_sample_count = 0;
+    let mut completed_transcripts: Vec<String> = Vec::new();
 
     while running.load(Ordering::SeqCst) {
         if let Some(d) = duration {
@@ -934,12 +936,11 @@ fn handle_stream(
 
         if let Ok(samples) = recorder.peek_samples() {
             if samples.len() > last_sample_count {
-                let new_samples = &samples[last_sample_count..];
-                last_sample_count = samples.len();
-
-                // Feed 512-sample frames into streaming transcriber
-                for frame in new_samples.chunks(512) {
-                    if frame.len() == 512 {
+                let available = &samples[last_sample_count..];
+                let full_frames_samples = (available.len() / 512) * 512;
+                if full_frames_samples > 0 {
+                    let to_process = &available[..full_frames_samples];
+                    for frame in to_process.chunks_exact(512) {
                         match transcriber.feed_frame(frame) {
                             Ok(voicekey_core::engine::StreamingOutput::Partial {
                                 text, ..
@@ -953,6 +954,9 @@ fn handle_stream(
                                     "[UTTERANCE COMPLETE]".bold().cyan(),
                                     result.text
                                 );
+                                if !result.text.trim().is_empty() {
+                                    completed_transcripts.push(result.text);
+                                }
                                 if auto_commit {
                                     running.store(false, Ordering::SeqCst);
                                     break;
@@ -961,22 +965,45 @@ fn handle_stream(
                             Ok(voicekey_core::engine::StreamingOutput::None) => {}
                             Err(e) => {
                                 eprintln!("\nStreaming error: {}", e);
+                                if auto_commit {
+                                    running.store(false, Ordering::SeqCst);
+                                    break;
+                                }
                             }
                         }
                     }
+                    last_sample_count += full_frames_samples;
                 }
             }
         }
     }
 
-    let _ = recorder.stop();
+    // Stop recorder and consume any remaining audio suffix exactly once
+    let final_samples = recorder.stop().unwrap_or_default();
+    if final_samples.len() > last_sample_count {
+        let suffix = &final_samples[last_sample_count..];
+        for frame in suffix.chunks_exact(512) {
+            let _ = transcriber.feed_frame(frame);
+        }
+        let rem = suffix.len() % 512;
+        if rem > 0 {
+            let short_frame = &suffix[suffix.len() - rem..];
+            let _ = transcriber.feed_frame(short_frame);
+        }
+    }
+
     let final_res = transcriber.finish()?;
+    if !final_res.text.trim().is_empty() {
+        completed_transcripts.push(final_res.text);
+    }
+
+    let full_transcript = completed_transcripts.join(" ");
 
     println!(
         "\n\n{}",
         "=== Final Streaming Transcript ===".bold().green()
     );
-    println!("{}", final_res.text);
+    println!("{}", full_transcript.trim());
 
     Ok(())
 }

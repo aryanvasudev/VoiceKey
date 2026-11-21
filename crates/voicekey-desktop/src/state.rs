@@ -56,6 +56,7 @@ pub enum ActorCommand {
     ToggleMute,
     SetMute(bool),
     GetStatus(oneshot::Sender<EngineStatus>),
+    AutoCommit(u64),
 }
 
 /// Handle to communicate with the background state machine actor.
@@ -180,6 +181,7 @@ pub fn spawn_actor() -> EngineHandle {
         let mut is_muted = false;
         let mut active_recorder: Option<Arc<std::sync::Mutex<AudioRecorder>>> = None;
         let mut cached_engine: Option<(String, Arc<WhisperEngine>)> = None;
+        let mut current_session_id: u64 = 0;
 
         info!("VoiceKey Tokio State Machine Actor started in Idle state.");
 
@@ -209,6 +211,9 @@ pub fn spawn_actor() -> EngineHandle {
                                 );
                                 continue;
                             }
+                            current_session_id = current_session_id.wrapping_add(1);
+                            let session_id = current_session_id;
+
                             let rec_arc = Arc::new(std::sync::Mutex::new(recorder));
                             active_recorder = Some(Arc::clone(&rec_arc));
                             state = EngineState::Recording;
@@ -234,7 +239,7 @@ pub fn spawn_actor() -> EngineHandle {
                             }
 
                             let settings = crate::settings::load_settings();
-                            if settings.streaming_enabled {
+                            if settings.streaming_enabled || settings.auto_commit_silence {
                                 let rec_handle = Arc::clone(&rec_arc);
                                 let eng_handle = cached_engine.as_ref().map(|(_, e)| Arc::clone(e));
                                 let cmd_sender = actor_cmd_tx.clone();
@@ -243,6 +248,7 @@ pub fn spawn_actor() -> EngineHandle {
                                 tauri::async_runtime::spawn(async move {
                                     let mut last_sample_len = 0;
                                     let mut last_text = String::new();
+                                    let mut speech_detected_in_session = false;
                                     let silence_limit_samples =
                                         settings.silence_timeout_ms as usize * 16;
 
@@ -265,8 +271,21 @@ pub fn spawn_actor() -> EngineHandle {
                                         }
 
                                         let len = samples.len();
-                                        // Speculative inference if at least 500ms audio and 250ms since last check
-                                        if len >= 8000
+
+                                        // Track speech onset across bounded windows so leading silence does not mask speech
+                                        if !speech_detected_in_session && len >= 4000 {
+                                            let check_window = &samples[len.saturating_sub(8000)..];
+                                            if voicekey_core::vad::EnergyVad::calculate_rms(
+                                                check_window,
+                                            ) > 0.002
+                                            {
+                                                speech_detected_in_session = true;
+                                            }
+                                        }
+
+                                        // Speculative inference if streaming is enabled, at least 500ms audio and 250ms since last check
+                                        if settings.streaming_enabled
+                                            && len >= 8000
                                             && len.saturating_sub(last_sample_len) >= 4000
                                         {
                                             if let Some(ref eng) = eng_handle {
@@ -293,22 +312,37 @@ pub fn spawn_actor() -> EngineHandle {
 
                                         // Adaptive VAD Silence auto-commit
                                         if settings.auto_commit_silence
-                                            && len >= 16000
+                                            && speech_detected_in_session
                                             && silence_limit_samples > 0
                                             && len > silence_limit_samples
                                         {
-                                            let tail = &samples[len - silence_limit_samples..];
-                                            let tail_rms =
-                                                voicekey_core::vad::EnergyVad::calculate_rms(tail);
-                                            let body = &samples[..len - silence_limit_samples];
-                                            let body_has_speech =
-                                                voicekey_core::vad::EnergyVad::calculate_rms(body)
-                                                    > 0.002;
+                                            // Refresh samples snapshot right before evaluating auto-commit
+                                            let refreshed_samples = {
+                                                if let Ok(guard) = rec_handle.lock() {
+                                                    guard.peek_samples().unwrap_or_default()
+                                                } else {
+                                                    Vec::new()
+                                                }
+                                            };
+                                            let r_len = refreshed_samples.len();
+                                            if r_len >= silence_limit_samples {
+                                                let tail = &refreshed_samples
+                                                    [r_len - silence_limit_samples..];
+                                                let tail_rms =
+                                                    voicekey_core::vad::EnergyVad::calculate_rms(
+                                                        tail,
+                                                    );
 
-                                            if body_has_speech && tail_rms < 0.0006 {
-                                                info!("Adaptive VAD silence auto-commit triggered after {}ms silence", settings.silence_timeout_ms);
-                                                let _ = cmd_sender.send(ActorCommand::Toggle).await;
-                                                break;
+                                                if tail_rms < 0.0006 {
+                                                    info!(
+                                                        "Adaptive VAD silence auto-commit triggered for session {} after {}ms silence",
+                                                        session_id, settings.silence_timeout_ms
+                                                    );
+                                                    let _ = cmd_sender
+                                                        .send(ActorCommand::AutoCommit(session_id))
+                                                        .await;
+                                                    break;
+                                                }
                                             }
                                         }
                                     }
@@ -538,17 +572,7 @@ pub fn spawn_actor() -> EngineHandle {
                 ActorCommand::Start => {
                     if state == EngineState::Idle && !is_muted {
                         info!("State transition: Idle -> Recording (Explicit Start)");
-                        let rec_config = AudioRecorderConfig {
-                            device_name: None,
-                            pre_roll_ms: 200,
-                            target_sample_rate: 16000,
-                        };
-                        let mut recorder = AudioRecorder::new(rec_config);
-                        if let Ok(()) = recorder.start() {
-                            active_recorder = Some(Arc::new(std::sync::Mutex::new(recorder)));
-                            state = EngineState::Recording;
-                            let _ = state_tx.send(state);
-                        }
+                        let _ = actor_cmd_tx.send(ActorCommand::Toggle).await;
                     }
                 }
                 ActorCommand::Stop => {
@@ -557,7 +581,19 @@ pub fn spawn_actor() -> EngineHandle {
                         let _ = actor_cmd_tx.send(ActorCommand::Toggle).await;
                     }
                 }
+                ActorCommand::AutoCommit(sid) => {
+                    if state == EngineState::Recording && sid == current_session_id {
+                        info!("Session {} auto-commit executing stop & paste.", sid);
+                        let _ = actor_cmd_tx.send(ActorCommand::Toggle).await;
+                    } else {
+                        info!(
+                            "AutoCommit ignored: received for retired session {} (current: {}, state: {:?})",
+                            sid, current_session_id, state
+                        );
+                    }
+                }
                 ActorCommand::Cancel => {
+                    current_session_id = current_session_id.wrapping_add(1);
                     if state == EngineState::Recording {
                         info!("Recording cancelled by user.");
                         if let Some(rec) = active_recorder.take() {
@@ -575,23 +611,29 @@ pub fn spawn_actor() -> EngineHandle {
                 ActorCommand::ToggleMute => {
                     is_muted = !is_muted;
                     info!("Microphone mute state changed: is_muted={}", is_muted);
-                    if is_muted && state == EngineState::Recording {
-                        if let Some(rec) = active_recorder.take() {
-                            let _ = rec.lock().unwrap().stop();
+                    if is_muted {
+                        current_session_id = current_session_id.wrapping_add(1);
+                        if state == EngineState::Recording {
+                            if let Some(rec) = active_recorder.take() {
+                                let _ = rec.lock().unwrap().stop();
+                            }
+                            state = EngineState::Idle;
+                            let _ = state_tx.send(state);
                         }
-                        state = EngineState::Idle;
-                        let _ = state_tx.send(state);
                     }
                 }
                 ActorCommand::SetMute(muted) => {
                     is_muted = muted;
                     info!("Microphone mute explicitly set to: {}", is_muted);
-                    if is_muted && state == EngineState::Recording {
-                        if let Some(rec) = active_recorder.take() {
-                            let _ = rec.lock().unwrap().stop();
+                    if is_muted {
+                        current_session_id = current_session_id.wrapping_add(1);
+                        if state == EngineState::Recording {
+                            if let Some(rec) = active_recorder.take() {
+                                let _ = rec.lock().unwrap().stop();
+                            }
+                            state = EngineState::Idle;
+                            let _ = state_tx.send(state);
                         }
-                        state = EngineState::Idle;
-                        let _ = state_tx.send(state);
                     }
                 }
                 ActorCommand::GetStatus(reply_tx) => {

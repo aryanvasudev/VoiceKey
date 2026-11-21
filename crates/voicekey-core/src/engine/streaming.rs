@@ -98,10 +98,26 @@ impl StreamingTranscriber {
         self.audio_buffer.extend_from_slice(frame);
         let vad_event = self.vad.process_frame(frame);
 
+        // Bound memory while detector is idle (retain up to 1 second pre-roll)
+        if !self.vad.is_speaking() {
+            let max_idle_preroll = 16000;
+            if self.audio_buffer.len() > max_idle_preroll {
+                let excess = self.audio_buffer.len() - max_idle_preroll;
+                self.audio_buffer.drain(0..excess);
+                self.last_speculative_len = self.last_speculative_len.saturating_sub(excess);
+            }
+        }
+
         match vad_event {
             VadEvent::UtteranceComplete { .. } => {
                 // Hysteresis silence timeout reached: auto-commit final utterance!
-                let result = self.finish()?;
+                let result = match self.finish() {
+                    Ok(r) => r,
+                    Err(e) => {
+                        self.reset();
+                        return Err(e);
+                    }
+                };
                 Ok(StreamingOutput::Final { result })
             }
             VadEvent::SpeechStarted
