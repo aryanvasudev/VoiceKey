@@ -62,3 +62,46 @@ jobs:
 
       - name: Run Workspace Tests
         run: cargo test --workspace --verbose
+
+  android:
+    name: Android FFI & AAR Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android, x86_64-linux-android
+
+      - name: Install Host Linux build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libasound2-dev
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: "temurin"
+          java-version: "17"
+
+      - name: Setup Android NDK
+        uses: nttld/setup-ndk@v1
+        with:
+          ndk-version: r26d
+
+      - name: Install cargo-ndk
+        run: cargo install cargo-ndk
+
+      - name: Build Android Native Libraries and Bindings
+        run: bash scripts/build_android_native.sh arm64-v8a x86_64
+
+      - name: Package Android AAR
+        run: bash scripts/package_android_aar.sh
+
+      - name: Upload Android AAR Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: voicekey-core-aar
+          path: target/voicekey-core.aar

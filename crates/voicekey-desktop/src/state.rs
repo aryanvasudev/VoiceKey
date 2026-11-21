@@ -187,7 +187,9 @@ pub fn spawn_actor() -> EngineHandle {
                                 continue;
                             }
                             info!("State transition: Idle -> Recording");
-                            voicekey_core::audio::play_sound_cue(voicekey_core::audio::SoundCue::Start);
+                            voicekey_core::audio::play_sound_cue(
+                                voicekey_core::audio::SoundCue::Start,
+                            );
                             let rec_config = AudioRecorderConfig {
                                 device_name: None,
                                 pre_roll_ms: 200,
@@ -196,7 +198,9 @@ pub fn spawn_actor() -> EngineHandle {
                             let mut recorder = AudioRecorder::new(rec_config);
                             if let Err(e) = recorder.start() {
                                 error!("Failed to start audio recording: {e}");
-                                voicekey_core::audio::play_sound_cue(voicekey_core::audio::SoundCue::Error);
+                                voicekey_core::audio::play_sound_cue(
+                                    voicekey_core::audio::SoundCue::Error,
+                                );
                                 continue;
                             }
                             active_recorder = Some(recorder);
@@ -205,7 +209,9 @@ pub fn spawn_actor() -> EngineHandle {
                         }
                         EngineState::Recording => {
                             info!("State transition: Recording -> Transcribing");
-                            voicekey_core::audio::play_sound_cue(voicekey_core::audio::SoundCue::Stop);
+                            voicekey_core::audio::play_sound_cue(
+                                voicekey_core::audio::SoundCue::Stop,
+                            );
                             state = EngineState::Transcribing;
                             let _ = state_tx.send(state);
 
@@ -241,7 +247,9 @@ pub fn spawn_actor() -> EngineHandle {
                                     "No speech detected (RMS: {:.6}, Peak: {:.6}, Duration: {:.2}s), returning to Idle.",
                                     rms, peak, duration_s
                                 );
-                                voicekey_core::audio::play_sound_cue(voicekey_core::audio::SoundCue::Error);
+                                voicekey_core::audio::play_sound_cue(
+                                    voicekey_core::audio::SoundCue::Error,
+                                );
                                 state = EngineState::Idle;
                                 let _ = state_tx.send(state);
                                 continue;
@@ -327,7 +335,9 @@ pub fn spawn_actor() -> EngineHandle {
                             if !result.text.is_empty() {
                                 state = EngineState::Pasting;
                                 let _ = state_tx.send(state);
-                                voicekey_core::audio::play_sound_cue(voicekey_core::audio::SoundCue::Complete);
+                                voicekey_core::audio::play_sound_cue(
+                                    voicekey_core::audio::SoundCue::Complete,
+                                );
 
                                 let text_to_paste = result.text.clone();
                                 let paste_res = tokio::task::spawn_blocking(move || {
@@ -348,7 +358,14 @@ pub fn spawn_actor() -> EngineHandle {
                                         format!("{}...", &result.text[..47])
                                     };
                                     let _ = std::process::Command::new("notify-send")
-                                        .args(["-a", "VoiceKey", "-t", "2000", "VoiceKey", &format!("✅ Pasted: \"{}\"", preview)])
+                                        .args([
+                                            "-a",
+                                            "VoiceKey",
+                                            "-t",
+                                            "2000",
+                                            "VoiceKey",
+                                            &format!("✅ Pasted: \"{}\"", preview),
+                                        ])
                                         .spawn();
                                 }
                             }

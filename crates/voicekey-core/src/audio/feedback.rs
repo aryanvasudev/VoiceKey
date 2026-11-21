@@ -11,6 +11,11 @@ pub enum SoundCue {
 /// Play an audible cue asynchronously without blocking the caller.
 pub fn play_sound_cue(cue: SoundCue) {
     std::thread::spawn(move || {
+        #[cfg(not(any(target_os = "linux", target_os = "windows")))]
+        {
+            let _ = cue;
+        }
+
         #[cfg(target_os = "linux")]
         {
             let name = match cue {
@@ -52,7 +57,11 @@ pub fn play_sound_cue(cue: SoundCue) {
                 SoundCue::Error => (330, 150),
             };
             let _ = std::process::Command::new("powershell")
-                .args(["-NoProfile", "-Command", &format!("[console]::beep({freq}, {dur})")])
+                .args([
+                    "-NoProfile",
+                    "-Command",
+                    &format!("[console]::beep({freq}, {dur})"),
+                ])
                 .stdout(std::process::Stdio::null())
                 .stderr(std::process::Stdio::null())
                 .status();

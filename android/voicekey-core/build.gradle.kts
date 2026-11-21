@@ -1,0 +1,57 @@
+plugins {
+    id("com.android.library")
+    id("org.jetbrains.kotlin.android")
+}
+
+android {
+    namespace = "com.voicekey.core"
+    compileSdk = 34
+
+    defaultConfig {
+        minSdk = 29
+        targetSdk = 34
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        consumerProguardFiles("proguard-rules.pro")
+
+        ndk {
+            abiFilters.addAll(listOf("arm64-v8a", "x86_64"))
+        }
+    }
+
+    buildTypes {
+        release {
+            isMinifyEnabled = false
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
+        }
+        debug {
+            isMinifyEnabled = false
+        }
+    }
+
+    sourceSets {
+        getByName("main") {
+            jniLibs.srcDirs("src/main/jniLibs")
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+
+    kotlinOptions {
+        jvmTarget = "17"
+    }
+}
+
+dependencies {
+    implementation("net.java.dev.jna:jna:5.14.0@aar")
+    implementation("androidx.core:core-ktx:1.13.1")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.8.1")
+
+    testImplementation("junit:junit:4.13.2")
+    testImplementation("net.java.dev.jna:jna:5.14.0")
+}

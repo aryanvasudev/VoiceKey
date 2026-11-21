@@ -15,3 +15,8 @@ Cargo.lock
 
 # Test audio recordings
 *.wav
+
+# Android build outputs & binaries
+android/**/build/
+android/**/jniLibs/**/*.so
+*.aar

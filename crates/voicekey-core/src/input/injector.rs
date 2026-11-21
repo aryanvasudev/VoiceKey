@@ -1,7 +1,9 @@
 //! Cross-platform hardware keystroke injection for auto-pasting.
 
 use crate::error::CoreError;
+#[cfg(any(target_os = "linux", target_os = "windows"))]
 use std::thread::sleep;
+#[cfg(any(target_os = "linux", target_os = "windows"))]
 use std::time::Duration;
 
 #[cfg(target_os = "linux")]
@@ -61,6 +63,7 @@ impl KeyInjector {
 
         #[cfg(not(any(target_os = "linux", target_os = "windows")))]
         {
+            let _ = is_terminal;
             Err(CoreError::Audio(
                 "Unsupported OS for keystroke injection".into(),
             ))
