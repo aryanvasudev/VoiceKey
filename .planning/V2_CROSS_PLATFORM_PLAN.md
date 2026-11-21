@@ -97,19 +97,19 @@ A review of naive cross-platform assumptions revealed several critical edge case
 ## 3. Phase-Wise Implementation Plan
 
 ### Phase 1: Shared Rust Engine (`voicekey-core`)
-- [ ] Initialize Cargo workspace with `crates/voicekey-core`.
-- [ ] Implement audio DSP pipeline:
+- [x] Initialize Cargo workspace with `crates/voicekey-core`.
+- [x] Implement audio DSP pipeline:
   - 16kHz resampler via `rubato`.
   - Stereo-to-mono downmixer.
   - Ring buffer with 200ms pre-roll memory to prevent missing initial consonants.
-- [ ] Integrate `whisper-rs` linking `whisper.cpp`:
+- [x] Integrate `whisper-rs` linking `whisper.cpp`:
   - Support Quantized GGML models (`Q4_0`, `Q5_0`, `Q8_0`).
   - CPU inference with AVX2/FMA (x86_64) and ARM NEON (aarch64).
-- [ ] Port text formatting and vocabulary biasing:
+- [x] Port text formatting and vocabulary biasing:
   - Custom prompt dictionary (`initial_prompt`).
   - Spoken punctuation parsing ("comma", "period", "new line").
   - Whitespace and capitalization cleanup.
-- [ ] Unit & benchmark test suite comparing outputs against the Python v1 baseline.
+- [x] Unit & benchmark test suite comparing outputs against the Python v1 baseline.
 
 ### Phase 2: Headless CLI & Cross-Platform Audio Capture
 - [x] Build `crates/voicekey-cli` for standalone verification without GUI.
@@ -122,12 +122,12 @@ A review of naive cross-platform assumptions revealed several critical edge case
   - `voicekey-cli transcribe test.wav --model base.en`
 
 ### Phase 3: Cross-Platform Input Injection & Hotkey System
-- [ ] **Keystroke Simulation & Auto-Paste:**
+- [x] **Keystroke Simulation & Auto-Paste:**
   - Windows: Win32 `SendInput` hardware scancode injection (`VK_CONTROL` + `VK_V`).
   - Linux: `/dev/uinput` virtual device (`evdev-rs`) with fallback to `wl-copy`.
   - Terminal awareness: Auto-detect terminal windows to emit `Ctrl+Shift+V`.
   - Asynchronous clipboard backup and restore queue.
-- [ ] **Hotkey Engines:**
+- [x] **Hotkey Engines:**
   - Windows: Dedicated thread with `WH_KEYBOARD_LL` (supporting both push-to-talk and toggle).
   - Linux: XDG Desktop Portal Global Shortcuts client with IPC socket fallback for desktop environment shortcuts (`gsettings`, `sway`, `hyprland`).
 

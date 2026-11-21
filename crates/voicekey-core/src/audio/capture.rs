@@ -246,6 +246,7 @@ impl AudioRecorder {
         Ok(())
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn build_stream<T>(
         device: &Device,
         config: &SupportedStreamConfig,

@@ -78,7 +78,7 @@ impl EnergyVad {
         }
 
         let frame_size = self.config.frame_size;
-        let num_frames = (samples.len() + frame_size - 1) / frame_size;
+        let num_frames = samples.len().div_ceil(frame_size);
 
         let mut first_speech_frame = None;
         let mut last_speech_frame = None;

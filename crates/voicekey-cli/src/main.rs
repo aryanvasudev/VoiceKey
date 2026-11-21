@@ -13,6 +13,8 @@ use voicekey_core::audio::{
     read_wav, write_wav, AudioCaptureManager, AudioRecorder, AudioRecorderConfig, AudioResampler,
 };
 use voicekey_core::engine::{WhisperConfig, WhisperEngine};
+use voicekey_core::input::{is_active_window_terminal, ClipboardManager};
+use voicekey_core::ipc::{send_ipc_command, IpcCommand, IpcResponse};
 use voicekey_core::vad::EnergyVad;
 
 #[derive(Parser, Debug)]
@@ -101,6 +103,32 @@ enum Commands {
 
     /// Run diagnostic checks on microphone, CPU instruction sets, and Whisper models
     Doctor,
+
+    /// Toggle VoiceKey dictation state (external desktop shortcut trigger)
+    Toggle,
+
+    /// Start VoiceKey dictation recording
+    Start,
+
+    /// Stop VoiceKey dictation recording and trigger transcription
+    Stop,
+
+    /// Query the current VoiceKey daemon status
+    Status,
+
+    /// Directly paste text into the active window with clipboard auto-restore
+    Paste {
+        /// Text to paste into the active window
+        text: String,
+
+        /// Do not restore previous clipboard contents after pasting
+        #[arg(long)]
+        no_restore: bool,
+
+        /// Debounce delay in milliseconds before restoring clipboard
+        #[arg(long, default_value_t = 250)]
+        delay_ms: u64,
+    },
 }
 
 fn main() -> Result<()> {
@@ -131,6 +159,15 @@ fn main() -> Result<()> {
             prompt,
         } => handle_listen(duration, model, device, spoken_punct, prompt)?,
         Commands::Doctor => handle_doctor()?,
+        Commands::Toggle => handle_ipc(IpcCommand::Toggle)?,
+        Commands::Start => handle_ipc(IpcCommand::Start)?,
+        Commands::Stop => handle_ipc(IpcCommand::Stop)?,
+        Commands::Status => handle_ipc(IpcCommand::Status)?,
+        Commands::Paste {
+            text,
+            no_restore,
+            delay_ms,
+        } => handle_paste(text, !no_restore, delay_ms)?,
     }
 
     Ok(())
@@ -589,3 +626,51 @@ fn handle_doctor() -> Result<()> {
 
     Ok(())
 }
+
+fn handle_ipc(cmd: IpcCommand) -> Result<()> {
+    match send_ipc_command(cmd) {
+        Ok(IpcResponse::Ok) => {
+            println!("{}", format!("✓ IPC Command '{:?}' succeeded", cmd).bold().green());
+            Ok(())
+        }
+        Ok(IpcResponse::State(state)) => {
+            println!("State: {}", state.bold().cyan());
+            Ok(())
+        }
+        Ok(IpcResponse::Error(err)) => {
+            bail!("VoiceKey daemon returned error: {}", err);
+        }
+        Err(e) => {
+            bail!("Failed to communicate with VoiceKey daemon: {}", e);
+        }
+    }
+}
+
+fn handle_paste(text: String, preserve: bool, delay_ms: u64) -> Result<()> {
+    let is_terminal = is_active_window_terminal();
+    println!("{}", "=== VoiceKey Direct Input Injection ===".bold().cyan());
+    println!(
+        "Active Window Target: {}",
+        if is_terminal {
+            "Terminal (Ctrl+Shift+V)".yellow()
+        } else {
+            "Standard Desktop GUI (Ctrl+V)".green()
+        }
+    );
+    println!("Payload Size: {} characters", text.len());
+    println!(
+        "Clipboard Preservation: {}",
+        if preserve {
+            format!("Enabled ({}ms debounce)", delay_ms).green()
+        } else {
+            "Disabled".yellow()
+        }
+    );
+
+    ClipboardManager::paste_and_restore(&text, preserve, delay_ms)
+        .context("Failed to inject text via clipboard auto-paste")?;
+
+    println!("{}", "✓ Text injected successfully!".bold().green());
+    Ok(())
+}
+

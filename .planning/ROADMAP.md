@@ -40,7 +40,7 @@ Detailed technical specifications and loophole mitigations are documented in [.p
 - [x] **Phase 8: Headless CLI & Cross-Platform Audio Capture**
   - Standalone headless verification tool (`voicekey-cli`).
   - Audio capture via `cpal` (WASAPI on Windows, PipeWire/ALSA on Linux) with dynamic device reconnection.
-- [ ] **Phase 9: Cross-Platform Input Injection & 3-Tier Hotkeys**
+- [x] **Phase 9: Cross-Platform Input Injection & 3-Tier Hotkeys**
   - Windows: Win32 `SendInput` hardware keystroke injection and `WH_KEYBOARD_LL` low-level hook (supporting Push-to-Talk and Toggle).
   - Linux: XDG Desktop Portal Global Shortcuts with IPC socket fallback for desktop shortcuts (`gsettings`, `sway`, `hyprland`).
   - Terminal-aware pasting (`Ctrl+Shift+V`) and 250ms debounced clipboard restoration.
